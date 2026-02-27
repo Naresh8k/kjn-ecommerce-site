@@ -1,0 +1,218 @@
+const prisma = require('../../config/db');
+
+const getDashboardStats = async (req, res) => {
+  try {
+    const today = new Date();
+    const startOfDay = new Date(today.setHours(0, 0, 0, 0));
+    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    const startOfLastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+    const endOfLastMonth = new Date(today.getFullYear(), today.getMonth(), 0);
+
+    const [
+      totalOrders, todayOrders, monthOrders,
+      totalRevenue, monthRevenue, lastMonthRevenue,
+      totalUsers, newUsersToday,
+      pendingOrders, processingOrders,
+      totalProducts, lowStockProducts,
+      recentOrders, topProducts,
+    ] = await Promise.all([
+      prisma.order.count(),
+      prisma.order.count({ where: { createdAt: { gte: startOfDay } } }),
+      prisma.order.count({ where: { createdAt: { gte: startOfMonth } } }),
+
+      prisma.order.aggregate({
+        where: { paymentStatus: 'PAID' },
+        _sum: { totalAmount: true },
+      }),
+      prisma.order.aggregate({
+        where: { paymentStatus: 'PAID', createdAt: { gte: startOfMonth } },
+        _sum: { totalAmount: true },
+      }),
+      prisma.order.aggregate({
+        where: { paymentStatus: 'PAID', createdAt: { gte: startOfLastMonth, lte: endOfLastMonth } },
+        _sum: { totalAmount: true },
+      }),
+
+      prisma.user.count({ where: { role: 'CUSTOMER' } }),
+      prisma.user.count({ where: { createdAt: { gte: startOfDay } } }),
+
+      prisma.order.count({ where: { status: 'PENDING' } }),
+      prisma.order.count({ where: { status: 'PROCESSING' } }),
+
+      prisma.product.count({ where: { isActive: true } }),
+      prisma.product.count({ where: { isActive: true, stockQuantity: { lte: 5 } } }),
+
+      prisma.order.findMany({
+        take: 5,
+        orderBy: { createdAt: 'desc' },
+        include: { user: { select: { name: true, phone: true } } },
+      }),
+
+      prisma.orderItem.groupBy({
+        by: ['productId'],
+        _sum: { quantity: true },
+        orderBy: { _sum: { quantity: 'desc' } },
+        take: 5,
+      }),
+    ]);
+
+    // Get top product names
+    const topProductDetails = await Promise.all(
+      topProducts.map(async (item) => {
+        const product = await prisma.product.findUnique({
+          where: { id: item.productId },
+          select: { name: true, slug: true, sellingPrice: true },
+        });
+        return { ...product, totalSold: item._sum.quantity };
+      })
+    );
+
+    const currentMonthRevenue = parseFloat(monthRevenue._sum.totalAmount || 0);
+    const previousMonthRevenue = parseFloat(lastMonthRevenue._sum.totalAmount || 0);
+    const revenueGrowth = previousMonthRevenue > 0
+      ? (((currentMonthRevenue - previousMonthRevenue) / previousMonthRevenue) * 100).toFixed(1)
+      : 100;
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        orders: {
+          total: totalOrders,
+          today: todayOrders,
+          thisMonth: monthOrders,
+          pending: pendingOrders,
+          processing: processingOrders,
+        },
+        revenue: {
+          total: parseFloat(totalRevenue._sum.totalAmount || 0),
+          thisMonth: currentMonthRevenue,
+          lastMonth: previousMonthRevenue,
+          growthPercent: revenueGrowth,
+        },
+        users: {
+          total: totalUsers,
+          newToday: newUsersToday,
+        },
+        products: {
+          total: totalProducts,
+          lowStock: lowStockProducts,
+        },
+        recentOrders,
+        topProducts: topProductDetails,
+      },
+    });
+  } catch (error) {
+    console.error('getDashboardStats error:', error);
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// Get all users list for admin
+const getAllUsers = async (req, res) => {
+  try {
+    const { page = 1, limit = 20, search } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const where = { role: 'CUSTOMER' };
+
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { phone: { contains: search } },
+        { email: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    const [users, total] = await Promise.all([
+      prisma.user.findMany({
+        where, skip, take: parseInt(limit),
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true, name: true, email: true, phone: true,
+          isVerified: true, createdAt: true,
+          _count: { select: { orders: true } },
+        },
+      }),
+      prisma.user.count({ where }),
+    ]);
+
+    return res.status(200).json({
+      success: true, data: users,
+      pagination: { total, page: parseInt(page), totalPages: Math.ceil(total / parseInt(limit)) },
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// Low stock alert
+const getLowStockProducts = async (req, res) => {
+  try {
+    const products = await prisma.product.findMany({
+      where: { isActive: true, stockQuantity: { lte: 10 } },
+      orderBy: { stockQuantity: 'asc' },
+      include: { category: { select: { name: true } } },
+      select: {
+        id: true, name: true, sku: true,
+        stockQuantity: true, sellingPrice: true,
+        category: true,
+      },
+    });
+    return res.status(200).json({ success: true, data: products });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// Update stock
+const updateStock = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { stockQuantity } = req.body;
+
+    const product = await prisma.product.update({
+      where: { id },
+      data: { stockQuantity: parseInt(stockQuantity) },
+    });
+    return res.status(200).json({ success: true, message: 'Stock updated', data: product });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// Revenue report by date range
+const getRevenueReport = async (req, res) => {
+  try {
+    const { from, to } = req.query;
+    const fromDate = from ? new Date(from) : new Date(new Date().setDate(1));
+    const toDate = to ? new Date(to) : new Date();
+
+    const orders = await prisma.order.findMany({
+      where: {
+        paymentStatus: 'PAID',
+        createdAt: { gte: fromDate, lte: toDate },
+      },
+      select: {
+        orderNumber: true, totalAmount: true,
+        createdAt: true, paymentMethod: true,
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const totalRevenue = orders.reduce((a, b) => a + parseFloat(b.totalAmount), 0);
+    const totalOrders = orders.length;
+    const averageOrderValue = totalOrders > 0 ? (totalRevenue / totalOrders).toFixed(2) : 0;
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        orders, totalRevenue: parseFloat(totalRevenue.toFixed(2)),
+        totalOrders, averageOrderValue: parseFloat(averageOrderValue),
+        from: fromDate, to: toDate,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+module.exports = { getDashboardStats, getAllUsers, getLowStockProducts, updateStock, getRevenueReport };

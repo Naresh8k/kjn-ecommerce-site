@@ -1,0 +1,69 @@
+'use client';
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import api from '@/lib/api';
+
+export default function MenuPage() {
+  const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.get('/categories')
+      .then((r) => setCategories(r.data.data || []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const quickLinks = [
+    { label: 'Home', href: '/' },
+    { label: 'My Orders', href: '/orders' },
+    { label: 'My Account', href: '/account' },
+    { label: 'About Us', href: '/about-us' },
+    { label: 'Blog', href: '/blog' },
+    { label: 'Contact Us', href: '/contact-us' },
+    // { label: 'Payment Policy', href: '/payment-policy' },
+    // { label: 'Privacy Policy', href: '/privacy-policy' },
+    // { label: 'Return & Refund', href: '/refund-policy' },
+    // { label: 'Shipping Policy', href: '/shipping-policy' },
+    // { label: 'Terms & Conditions', href: '/tos' },
+  ];
+
+  return (
+    <div className="container" style={{ padding: '24px 16px' }}>
+      {/* <h1 style={{ fontFamily: 'Sora', fontWeight: 800, fontSize: 24, marginBottom: 24 }}>Menu</h1> */}
+      <section style={{ marginBottom: 32 }}>
+        {/* <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>Categories</h2> */}
+        {loading ? (
+          <p>Loading...</p>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))', gap: 12 }}>
+            {categories.map((cat) => (
+              <Link key={cat.id} href={`/categories/${cat.slug}`} style={{
+                padding: '12px', background: 'white', borderRadius: 8,
+                boxShadow: '0 2px 8px rgba(0,0,0,0.07)', textAlign: 'center',
+                fontWeight: 600, color: '#374151', textDecoration: 'none',
+              }}>
+                {cat.name}
+              </Link>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section>
+        {/* <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>Quick Links</h2> */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {quickLinks.map((link) => (
+            <Link key={link.href} href={link.href} style={{
+              padding: '10px 14px', borderRadius: 8, background: 'white',
+              boxShadow: '0 1px 4px rgba(0,0,0,0.05)', color: '#374151',
+              textDecoration: 'none', fontWeight: 600,
+            }}>
+              {link.label}
+            </Link>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+}
