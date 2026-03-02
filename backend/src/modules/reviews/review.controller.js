@@ -1,5 +1,4 @@
 const prisma = require('../../config/db');
-const redis = require('../../config/redis');
 
 const addReview = async (req, res) => {
   try {
@@ -22,10 +21,6 @@ const addReview = async (req, res) => {
       data: { userId, productId, rating: parseInt(rating), title, body, isVerifiedPurchase: !!purchase },
       include: { user: { select: { name: true, avatarUrl: true } } },
     });
-
-    // Clear product cache
-    const product = await prisma.product.findUnique({ where: { id: productId }, select: { slug: true } });
-    if (product) await redis.del(`product:${product.slug}`);
 
     return res.status(201).json({ success: true, message: 'Review submitted for approval', data: review });
   } catch (error) {

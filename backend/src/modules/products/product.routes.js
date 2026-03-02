@@ -7,9 +7,10 @@ router.get('/', getProducts);
 router.get('/search', searchProducts);
 router.get('/:slug', getProductBySlug);
 
-// Admin routes
-router.post('/', protect, adminOnly, createProduct);
-router.put('/:id', protect, adminOnly, updateProduct);
-router.delete('/:id', protect, adminOnly, deleteProduct);
+// Admin routes (with a relaxed limiter so bulk operations don't hit 429)
+const { adminLimiter } = require('../../middleware/rateLimiter.middleware');
+router.post('/', protect, adminOnly, adminLimiter, createProduct);
+router.put('/:id', protect, adminOnly, adminLimiter, updateProduct);
+router.delete('/:id', protect, adminOnly, adminLimiter, deleteProduct);
 
 module.exports = router;

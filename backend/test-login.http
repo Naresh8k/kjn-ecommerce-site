@@ -1,0 +1,57 @@
+### ? VALID - Test Password Login Endpoint
+POST http://localhost:5000/api/auth/login/password
+Content-Type: application/json
+
+{
+  "email": "admin@kjn.com",
+  "password": "admin123"
+}
+
+###
+
+### ? INVALID - Test with Invalid Email Format
+POST http://localhost:5000/api/auth/login/password
+Content-Type: application/json
+
+{
+  "email": "invalid-email",
+  "password": "admin123"
+}
+
+###
+
+### ? INVALID - Test with Missing Password Field
+POST http://localhost:5000/api/auth/login/password
+Content-Type: application/json
+
+{
+  "email": "admin@kjn.com"
+}
+
+###
+
+### ? INVALID - Test with Short Password (< 6 chars)
+POST http://localhost:5000/api/auth/login/password
+Content-Type: application/json
+
+{
+  "email": "admin@kjn.com",
+  "password": "123"
+}
+
+###
+
+### ? INVALID - Test with Wrong Credentials
+POST http://localhost:5000/api/auth/login/password
+Content-Type: application/json
+
+{
+  "email": "admin@kjn.com",
+  "password": "wrongpassword"
+}
+
+###
+
+### ? Test Get Current User (requires valid token)
+GET http://localhost:5000/api/auth/me
+Authorization: Bearer YOUR_ACCESS_TOKEN_HERE

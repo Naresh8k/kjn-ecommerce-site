@@ -114,12 +114,12 @@ export default function ProductPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {product.images?.map((img, i) => (
                 <button key={i} onClick={() => setActiveImg(i)} style={{ border: `2px solid ${activeImg === i ? '#1B5E20' : '#e5e7eb'}`, borderRadius: 10, overflow: 'hidden', background: 'white', cursor: 'pointer', padding: 0 }}>
-                  <img src={img.url} alt="" style={{ width: '100%', aspectRatio: '1', objectFit: 'cover' }} />
+              <img src={img.image} alt="" style={{ width: '100%', aspectRatio: '1', objectFit: 'cover' }} />
                 </button>
               ))}
             </div>
             <div style={{ position: 'relative', background: 'white', borderRadius: 16, overflow: 'hidden', aspectRatio: '1', boxShadow: '0 4px 16px rgba(0,0,0,0.08)' }}>
-              <img src={product.images?.[activeImg]?.url || '/placeholder.jpg'} alt={product.name}
+              <img src={product.images?.[activeImg]?.image || product.image || ''} alt={product.name} onError={e => { e.currentTarget.src = ''; e.currentTarget.style.display='none'; }}
                 style={{ width: '100%', height: '100%', objectFit: 'contain', padding: 16 }} />
               {product.discountPercent > 0 && (
                 <div style={{ position: 'absolute', top: 16, left: 16 }}>

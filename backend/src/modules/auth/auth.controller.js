@@ -6,12 +6,20 @@ const {
   verifyOTP,
   checkOTPCooldown,
   setOTPCooldown,
+  saveSignupSession,
+  getSignupSession,
+  deleteSignupSession,
 } = require('../../utils/otp');
 const {
   generateAccessToken,
   generateRefreshToken,
   verifyRefreshToken,
 } = require('../../utils/jwt');
+const {
+  saveRefreshToken,
+  verifyRefreshTokenExists,
+  deleteRefreshToken,
+} = require('../../utils/tokenStorage');
 
 // ─────────────────────────────────────────────
 // SIGNUP — Step 1: Send Email OTP
@@ -30,31 +38,34 @@ const signupSendOTP = async (req, res) => {
       });
     }
 
-    // Check if user already exists
+    // Check if a FULLY REGISTERED user already exists
     const existingUser = await prisma.user.findFirst({
-      where: {
-        OR: [{ email }, { phone }],
-      },
+      where: { OR: [{ email }, { phone }] },
     });
 
     if (existingUser) {
-      if (existingUser.email === email) {
-        return res.status(400).json({
-          success: false,
-          message: 'Email already registered. Please login.',
-        });
-      }
-      if (existingUser.phone === phone) {
-        return res.status(400).json({
-          success: false,
-          message: 'Phone number already registered. Please login.',
-        });
-      }
+      // A real account exists — block and tell them to login
+      const field = existingUser.email === email ? 'Email' : 'Phone number';
+      return res.status(400).json({
+        success: false,
+        message: `${field} already registered. Please login.`,
+        alreadyRegistered: true,
+      });
     }
 
-    // Check cooldown (prevent OTP spam)
+    // Check if there is an existing pending signup session for this email/phone
+    // (user requested OTP before but never completed verification)
+    const existingSession = await getSignupSession(email);
+    const phoneSession = await prisma.signupSession.findFirst({ where: { phone } }).catch(() => null);
+
+    if (!existingSession && phoneSession) {
+      // Phone is tied to a different pending email session — delete it and allow fresh start
+      await prisma.signupSession.delete({ where: { id: phoneSession.id } }).catch(() => {});
+    }
+
+    // Check cooldown (prevent OTP spam) — only if no existing session to allow re-entry
     const onCooldown = await checkOTPCooldown(`signup:${email}`);
-    if (onCooldown) {
+    if (onCooldown && !existingSession) {
       return res.status(429).json({
         success: false,
         message: 'Please wait 1 minute before requesting another OTP',
@@ -64,17 +75,12 @@ const signupSendOTP = async (req, res) => {
     // Generate OTP
     const otp = generateOTP();
 
-    // Save OTP in Redis
+    // Save OTP in Database (overwrites any previous OTP for this email)
     await saveOTP(`signup:${email}`, otp);
     await setOTPCooldown(`signup:${email}`);
 
-    // Save temporary signup data in Redis (10 minutes)
-    const redis = require('../../config/redis');
-    await redis.setex(
-      `signup:data:${email}`,
-      600,
-      JSON.stringify({ name, email, phone })
-    );
+    // Save (or overwrite) temporary signup data in Database (10 minutes)
+    await saveSignupSession(email, name, phone);
 
     // Send OTP via Email
     await sendEmail({
@@ -134,9 +140,8 @@ const signupVerifyOTP = async (req, res) => {
       return res.status(400).json({ success: false, message: result.message });
     }
 
-    // Get signup data from Redis
-    const redis = require('../../config/redis');
-    const signupData = await redis.get(`signup:data:${email}`);
+    // Get signup data from Database
+    const signupData = await getSignupSession(email);
     if (!signupData) {
       return res.status(400).json({
         success: false,
@@ -144,7 +149,7 @@ const signupVerifyOTP = async (req, res) => {
       });
     }
 
-    const { name, phone } = JSON.parse(signupData);
+    const { name, phone } = signupData;
 
     // Create user in database
     const user = await prisma.user.create({
@@ -157,16 +162,16 @@ const signupVerifyOTP = async (req, res) => {
       },
     });
 
-    // Clean up Redis
-    await redis.del(`signup:data:${email}`);
+    // Clean up signup session
+    await deleteSignupSession(email);
 
     // Generate tokens
     const payload = { id: user.id, role: user.role };
     const accessToken = generateAccessToken(payload);
     const refreshToken = generateRefreshToken(payload);
 
-    // Save refresh token in Redis
-    await redis.setex(`refresh:${user.id}`, 7 * 24 * 60 * 60, refreshToken);
+    // Save refresh token in Database
+    await saveRefreshToken(user.id, refreshToken);
 
     // Set refresh token in HTTP-only cookie
     res.cookie('refreshToken', refreshToken, {
@@ -231,25 +236,44 @@ const loginSendOTP = async (req, res) => {
     // Generate OTP
     const otp = generateOTP();
 
-    // Save OTP in Redis
+    // Save OTP in Database
     await saveOTP(`login:${phone}`, otp);
     await setOTPCooldown(`login:${phone}`);
 
-    // ── WhatsApp Integration (add later) ──────────────
-    // When you get Interakt API key, replace console.log with:
-    // await sendWhatsAppOTP(phone, otp, user.name);
-    // ─────────────────────────────────────────────────
+    // Send OTP to user's registered email
+    await sendEmail({
+      to: user.email,
+      subject: 'KJN Shop - Login OTP',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto;">
+          <h2 style="color: #1B5E20;">KJN Shop - Login Verification</h2>
+          <p>Hello <strong>${user.name}</strong>,</p>
+          <p>Your OTP for login is:</p>
+          <h1 style="background: #E8F5E9; padding: 20px; text-align: center;
+              letter-spacing: 10px; color: #1B5E20; border-radius: 8px;">
+            ${otp}
+          </h1>
+          <p>This OTP is valid for <strong>5 minutes</strong>.</p>
+          <p>If you did not request this, please ignore this email.</p>
+          <hr/>
+          <small style="color: #999;">KJN Trading Company, Mulakalacheruvu, AP</small>
+        </div>
+      `,
+    });
 
-    // For now — print OTP in console for testing
+    // For testing — print OTP in console
     console.log(`\n=============================`);
-    console.log(`LOGIN OTP for ${phone}: ${otp}`);
+    console.log(`LOGIN OTP for ${phone} sent to ${user.email}: ${otp}`);
     console.log(`=============================\n`);
+
+    // Mask the email for the response (e.g. us***@gmail.com)
+    const [localPart, domain] = user.email.split('@');
+    const maskedEmail = localPart.slice(0, 2) + '***@' + domain;
 
     return res.status(200).json({
       success: true,
-      message: `OTP sent to ${phone}. Valid for 5 minutes.`,
-      // Remove this in production — only for testing
-      ...(process.env.NODE_ENV === 'development' && { otp }),
+      message: `OTP sent to your registered email (${maskedEmail}). Valid for 5 minutes.`,
+      maskedEmail,
     });
   } catch (error) {
     console.error('loginSendOTP error:', error);
@@ -293,9 +317,8 @@ const loginVerifyOTP = async (req, res) => {
     const accessToken = generateAccessToken(payload);
     const refreshToken = generateRefreshToken(payload);
 
-    // Save refresh token in Redis
-    const redis = require('../../config/redis');
-    await redis.setex(`refresh:${user.id}`, 7 * 24 * 60 * 60, refreshToken);
+    // Save refresh token in Database
+    await saveRefreshToken(user.id, refreshToken);
 
     // Set refresh token in HTTP-only cookie
     res.cookie('refreshToken', refreshToken, {
@@ -360,8 +383,7 @@ const loginWithPassword = async (req, res) => {
     const payload = { id: user.id, role: user.role };
     const accessToken = generateAccessToken(payload);
     const refreshToken = generateRefreshToken(payload);
-    const redis = require('../../config/redis');
-    await redis.setex(`refresh:${user.id}`, 7 * 24 * 60 * 60, refreshToken);
+    await saveRefreshToken(user.id, refreshToken);
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -410,10 +432,9 @@ const refreshToken = async (req, res) => {
       });
     }
 
-    // Check if refresh token exists in Redis
-    const redis = require('../../config/redis');
-    const savedToken = await redis.get(`refresh:${decoded.id}`);
-    if (!savedToken || savedToken !== token) {
+    // Check if refresh token exists in Database
+    const tokenExists = await verifyRefreshTokenExists(token);
+    if (!tokenExists) {
       return res.status(401).json({
         success: false,
         message: 'Refresh token revoked',
@@ -443,9 +464,8 @@ const logout = async (req, res) => {
     if (token) {
       const decoded = verifyRefreshToken(token);
       if (decoded) {
-        // Remove refresh token from Redis
-        const redis = require('../../config/redis');
-        await redis.del(`refresh:${decoded.id}`);
+        // Remove refresh token from Database
+        await deleteRefreshToken(decoded.id);
       }
     }
 
@@ -477,7 +497,7 @@ const getMe = async (req, res) => {
         phone: true,
         role: true,
         isVerified: true,
-        avatarUrl: true,
+        avatar: true,
         createdAt: true,
       },
     });

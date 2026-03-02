@@ -1,116 +1,231 @@
-'use client';
-import { useEffect, useState } from 'react';
+﻿'use client';
+import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
-import { ArrowRight, Truck, Shield, RefreshCw, Headphones, ChevronRight } from 'lucide-react';
+import {
+  ChevronRight, ChevronLeft, Truck, Shield, RefreshCw,
+  Headphones, ArrowRight, Zap, TrendingUp, Star, Package
+} from 'lucide-react';
 import ProductCard from '@/components/product/ProductCard';
 import api from '@/lib/api';
 
-// Skeleton loader
-const Skeleton = ({ w = '100%', h = 20, radius = 8 }) => (
-  <div className="skeleton" style={{ width: w, height: h, borderRadius: radius }} />
-);
+const NO_IMG = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200' viewBox='0 0 24 24' fill='none' stroke='%23D1D5DB' stroke-width='1'%3E%3Crect x='3' y='3' width='18' height='18' rx='2'/%3E%3Ccircle cx='8.5' cy='8.5' r='1.5'/%3E%3Cpolyline points='21 15 16 10 5 21'/%3E%3C/svg%3E";
+
+function Skel({ h = 20, w = '100%', r = 8 }) {
+  return (
+    <div style={{
+      height: h, width: w, borderRadius: r,
+      background: 'linear-gradient(90deg,#f0f0f0 25%,#e0e0e0 50%,#f0f0f0 75%)',
+      backgroundSize: '200% 100%',
+      animation: 'shimmer 1.4s infinite'
+    }} />
+  );
+}
+
+function SectionHead({ label, tag, href }) {
+  return (
+    <div className="flex items-center justify-between mb-5">
+      <div className="flex items-center gap-3">
+        <div className="w-1 h-7 bg-primary-900 rounded-full" />
+        <div>
+          <h2 className="font-heading font-extrabold text-xl text-gray-900 leading-none">{label}</h2>
+          {tag && <p className="text-xs text-gray-500 mt-0.5 font-medium">{tag}</p>}
+        </div>
+      </div>
+      {href && (
+        <Link href={href} className="flex items-center gap-1 text-sm font-bold text-primary-900 hover:text-primary-800 transition-colors">
+          View All <ChevronRight className="w-4 h-4" />
+        </Link>
+      )}
+    </div>
+  );
+}
+
+function ProductSkeleton() {
+  return (
+    <div className="bg-white rounded-2xl overflow-hidden border border-gray-100">
+      <Skel h={200} r={0} />
+      <div className="p-3 space-y-2">
+        <Skel h={12} w="60%" r={4} />
+        <Skel h={14} r={4} />
+        <Skel h={14} w="80%" r={4} />
+        <Skel h={18} w="50%" r={4} />
+      </div>
+    </div>
+  );
+}
 
 export default function HomePage() {
-  const [banners, setBanners] = useState([]);
+  const [banners,    setBanners]    = useState([]);
   const [categories, setCategories] = useState([]);
-  const [newProducts, setNewProducts] = useState([]);
-  const [fanProducts, setFanProducts] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [currentBanner, setCurrentBanner] = useState(0);
+  const [featured,   setFeatured]   = useState([]);
+  const [newest,     setNewest]     = useState([]);
+  const [brands,     setBrands]     = useState([]);
+  const [loading,    setLoading]    = useState(true);
+  const [slide,      setSlide]      = useState(0);
+  const timerRef = useRef(null);
+
+  // Static hero slide always first; admin banners follow
+  const allSlides = [
+    { type: 'static' },
+    ...banners.map(b => ({ type: 'banner', ...b })),
+  ];
 
   useEffect(() => {
-    const fetchData = async () => {
+    (async () => {
       try {
-        const [catRes, newRes, fanRes, bannerRes] = await Promise.all([
-          api.get('/categories'),
-          api.get('/collections/new-launch'),
-          api.get('/collections/fans'),
-          api.get('/banners?position=hero'),
+        const [catR, featR, newR, bannerR, brandR] = await Promise.all([
+          api.get('/categories?limit=20'),
+          api.get('/products?featured=true&limit=10'),
+          api.get('/products?sort=newest&limit=10'),
+          api.get('/banners'),
+          api.get('/brands?limit=20'),
         ]);
-        setCategories(catRes.data.data || []);
-        setNewProducts(newRes.data.data || []);
-        setFanProducts(fanRes.data.data || []);
-        setBanners(bannerRes.data.data || []);
+        setCategories(catR.data.data   || []);
+        setFeatured(featR.data.data    || []);
+        setNewest(newR.data.data       || []);
+        setBanners((bannerR.data.data  || []).filter(b => b.isActive && (b.image || b.imageUrl)));
+        setBrands(brandR.data.data     || []);
       } catch (e) {
         console.error(e);
       } finally {
         setLoading(false);
       }
-    };
-    fetchData();
+    })();
   }, []);
 
-  // Auto-rotate banner
   useEffect(() => {
-    if (banners.length <= 1) return;
-    const t = setInterval(() => setCurrentBanner((p) => (p + 1) % banners.length), 4000);
-    return () => clearInterval(t);
-  }, [banners.length]);
+    if (allSlides.length <= 1) return;
+    timerRef.current = setInterval(() => setSlide(p => (p + 1) % allSlides.length), 4500);
+    return () => clearInterval(timerRef.current);
+  }, [allSlides.length]);
+
+  const prevSlide = () => {
+    clearInterval(timerRef.current);
+    setSlide(p => (p - 1 + allSlides.length) % allSlides.length);
+  };
+  const nextSlide = () => {
+    clearInterval(timerRef.current);
+    setSlide(p => (p + 1) % allSlides.length);
+  };
 
   return (
-    <div>
-      {/* Hero Banner */}
-      <section style={{ background: '#F1F8E9', overflow: 'hidden' }}>
+    <div className="bg-gray-50 min-h-screen">
+      <style>{`@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}.hide-scroll::-webkit-scrollbar{display:none}.hide-scroll{-ms-overflow-style:none;scrollbar-width:none}`}</style>
+
+      {/* HERO CAROUSEL — static slide + admin banners */}
+      <section className="relative bg-primary-900 overflow-hidden">
         {loading ? (
-          <div style={{ height: 320 }} className="skeleton" />
-        ) : banners.length > 0 ? (
-          <div style={{ position: 'relative', overflow: 'hidden' }}>
-            <div style={{ display: 'flex', transition: 'transform 0.6s ease', transform: `translateX(-${currentBanner * 100}%)` }}>
-              {banners.map((b, i) => (
-                <a key={i} href={b.linkUrl || '#'} style={{ flex: '0 0 100%', display: 'block' }}>
-                  <img src={b.imageUrl} alt={b.title} style={{ width: '100%', maxHeight: 420, objectFit: 'cover', display: 'block' }} />
-                </a>
+          <Skel h={380} r={0} />
+        ) : (
+          <div className="relative overflow-hidden" style={{ height: 'clamp(220px, 42vw, 480px)' }}>
+            {/* Track */}
+            <div
+              className="flex h-full transition-transform duration-700 ease-in-out"
+              style={{ transform: `translateX(-${slide * 100}%)` }}
+            >
+              {allSlides.map((s, i) => (
+                s.type === 'static' ? (
+               
+                  <div key="static" className="flex-shrink-0 w-full h-full relative" style={{ background: 'linear-gradient(135deg,#1B5E20 0%,#2E7D32 60%,#388E3C 100%)' }}>
+                    <div className="absolute -top-20 -right-20 w-80 h-80 rounded-full bg-white/5" />
+                    <div className="absolute -bottom-10 -left-10 w-60 h-60 rounded-full bg-white/5" />
+                    <div className="absolute top-1/4 left-1/4 w-40 h-40 rounded-full bg-white/5" />
+                    <div className="container mx-auto px-4 h-full flex items-center justify-center relative z-10">
+                      <div className="text-center text-white max-w-2xl">
+                        <span className="inline-block bg-white/20 text-white text-xs font-bold uppercase tracking-widest px-4 py-1.5 rounded-full mb-5">
+                          Premium Agricultural Equipment
+                        </span>
+                        <h1 className="font-heading font-extrabold text-white leading-tight mb-4" style={{ fontSize: 'clamp(26px,5vw,56px)' }}>
+                          Trusted by Farmers<br />Across Andhra Pradesh
+                        </h1>
+                        <p className="text-white/80 mb-7 text-sm md:text-base max-w-lg mx-auto">
+                          Sprayers, seeders, motors, tools and more at the best prices.
+                        </p>
+                        <div className="flex flex-wrap gap-3 justify-center">
+                          <Link href="/products" className="inline-flex items-center gap-2 bg-white text-primary-900 font-extrabold px-7 py-3 rounded-full text-sm hover:bg-primary-50 transition-colors shadow-lg">
+                            Shop Now <ArrowRight className="w-4 h-4" />
+                          </Link>
+                          <Link href="/categories" className="inline-flex items-center gap-2 border-2 border-white text-white font-bold px-7 py-3 rounded-full text-sm hover:bg-white/10 transition-colors">
+                            Browse Categories
+                          </Link>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  /* ── Admin banner slide ── */
+                  <div
+                    key={i}
+                    className="flex-shrink-0 w-full h-full block relative cursor-pointer"
+                    onClick={() => s.linkUrl && s.linkUrl !== '#' && window.location.assign(s.linkUrl)}
+                  >
+                    <img
+                      src={s.image || s.imageUrl}
+                      alt={s.title || 'Banner'}
+                      className="w-full h-full object-cover"
+                      onError={e => { e.target.onerror = null; e.target.src = NO_IMG; }}
+                    />
+                    {s.title && (
+                      <div className="absolute inset-0 bg-gradient-to-r from-black/55 to-transparent flex items-center px-10 md:px-20">
+                        <div className="text-white max-w-lg">
+                          <p className="text-xs font-semibold uppercase tracking-widest mb-2 opacity-80">Special Offer</p>
+                          <h2 className="font-heading font-extrabold text-3xl md:text-5xl leading-tight mb-4">{s.title}</h2>
+                          {s.linkUrl && (
+                            <span
+                              onClick={e => { e.stopPropagation(); window.location.assign(s.linkUrl); }}
+                              className="inline-flex items-center gap-2 bg-white text-primary-900 font-bold px-6 py-2.5 rounded-full text-sm hover:bg-primary-50 transition-colors cursor-pointer"
+                            >
+                              Shop Now <ArrowRight className="w-4 h-4" />
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
               ))}
             </div>
-            {banners.length > 1 && (
-              <div style={{ position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 6 }}>
-                {banners.map((_, i) => (
-                  <button key={i} onClick={() => setCurrentBanner(i)}
-                    style={{ width: i === currentBanner ? 24 : 8, height: 8, borderRadius: 99, border: 'none', background: i === currentBanner ? '#fff' : 'rgba(255,255,255,0.5)', transition: 'all 0.3s' }} />
-                ))}
-              </div>
+
+            {/* Prev / Next arrows — always shown when >1 slide */}
+            {allSlides.length > 1 && (
+              <>
+                <button onClick={prevSlide} className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/40 hover:bg-black/60 text-white flex items-center justify-center z-10">
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+                <button onClick={nextSlide} className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/40 hover:bg-black/60 text-white flex items-center justify-center z-10">
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5 z-10">
+                  {allSlides.map((_, i) => (
+                    <button key={i} onClick={() => setSlide(i)}
+                      className="transition-all duration-300 rounded-full"
+                      style={{ width: i === slide ? 24 : 8, height: 8, background: i === slide ? '#fff' : 'rgba(255,255,255,0.5)' }}
+                    />
+                  ))}
+                </div>
+              </>
             )}
-          </div>
-        ) : (
-          /* Fallback hero if no banners in DB */
-          <div style={{
-            background: 'linear-gradient(135deg, #1B5E20 0%, #2E7D32 50%, #388E3C 100%)',
-            padding: '64px 16px', textAlign: 'center', color: 'white',
-          }}>
-            <div className="container">
-              <p style={{ fontSize: 13, fontWeight: 600, opacity: 0.8, marginBottom: 8, letterSpacing: 2, textTransform: 'uppercase' }}>Premium Quality</p>
-              <h1 style={{ fontFamily: 'Sora', fontWeight: 800, fontSize: 'clamp(28px, 5vw, 52px)', color: 'white', marginBottom: 16, lineHeight: 1.2 }}>
-                Farm Equipment<br />at Best Prices
-              </h1>
-              <p style={{ fontSize: 16, opacity: 0.9, marginBottom: 32, maxWidth: 480, margin: '0 auto 32px' }}>
-                Sprayers, Seeders, Motors, Tools & more. Trusted by farmers across Andhra Pradesh.
-              </p>
-              <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
-                <Link href="/categories/farm-equipments" className="btn btn-accent btn-lg">Shop Now <ArrowRight style={{ width: 18 }} /></Link>
-                <Link href="/categories" className="btn btn-outline btn-lg" style={{ borderColor: 'white', color: 'white' }}>Browse All</Link>
-              </div>
-            </div>
           </div>
         )}
       </section>
 
-      {/* Trust Badges */}
-      <section style={{ background: 'white', borderBottom: '1px solid #e5e7eb' }}>
-        <div className="container" style={{ padding: '16px 16px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+      {/* TRUST BADGES */}
+      <section className="bg-white border-b border-gray-100">
+        <div className="container mx-auto px-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-gray-100">
             {[
-              { icon: Truck, title: 'Free Delivery', sub: 'On orders above ₹500' },
-              { icon: Shield, title: 'Genuine Products', sub: '100% authentic brands' },
-              { icon: RefreshCw, title: 'Easy Returns', sub: '7-day return policy' },
-              { icon: Headphones, title: '24/7 Support', sub: 'WhatsApp & Phone' },
+              { icon: Truck,      title: 'Free Delivery',    sub: 'On orders above \u20b9500' },
+              { icon: Shield,     title: 'Genuine Products', sub: '100% authentic brands' },
+              { icon: RefreshCw,  title: 'Easy Returns',     sub: '7-day return policy' },
+              { icon: Headphones, title: '24/7 Support',     sub: 'WhatsApp & Phone' },
             ].map(({ icon: Icon, title, sub }) => (
-              <div key={title} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px' }}>
-                <div style={{ width: 40, height: 40, background: '#E8F5E9', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <Icon style={{ width: 20, color: '#1B5E20' }} />
+              <div key={title} className="flex items-center gap-3 px-4 py-4 md:py-5">
+                <div className="w-10 h-10 rounded-xl bg-primary-50 flex items-center justify-center flex-shrink-0">
+                  <Icon className="w-5 h-5 text-primary-900" />
                 </div>
                 <div>
-                  <p style={{ fontWeight: 700, fontSize: 13, color: '#1F2937' }}>{title}</p>
-                  <p style={{ fontSize: 11, color: '#6B7280' }}>{sub}</p>
+                  <p className="font-bold text-sm text-gray-900">{title}</p>
+                  <p className="text-xs text-gray-500">{sub}</p>
                 </div>
               </div>
             ))}
@@ -118,134 +233,176 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Browse Categories */}
-      <section className="section">
-        <div className="container">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
-            <h2 className="section-title">Browse Categories</h2>
-            <Link href="/categories" style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#1B5E20', fontWeight: 700, fontSize: 13 }}>
-              View All <ChevronRight style={{ width: 16 }} />
-            </Link>
-          </div>
-          <div className="category-grid">
-            {loading
-              ? Array(10).fill(0).map((_, i) => (
-                <div key={i} style={{ borderRadius: 12, overflow: 'hidden' }}>
-                  <Skeleton h={100} radius={12} />
-                  <Skeleton h={16} radius={6} w="70%" />
+      {/* CATEGORIES */}
+      <section className="py-8 md:py-12 bg-white">
+        <div className="container mx-auto px-4">
+          <SectionHead label="Shop by Category" tag="Find what you need fast" href="/categories" />
+          {loading ? (
+            <div className="grid grid-cols-4 md:grid-cols-8 gap-3">
+              {Array(8).fill(0).map((_, i) => (
+                <div key={i} className="flex flex-col items-center gap-2">
+                  <Skel h={72} w={72} r={999} />
+                  <Skel h={12} w={60} r={4} />
                 </div>
-              ))
-              : categories.map((cat) => (
-                <Link key={cat.id} href={`/categories/${cat.slug}`}>
-                  <div style={{
-                    borderRadius: 12, overflow: 'hidden',
-                    background: 'white', boxShadow: '0 2px 8px rgba(0,0,0,0.07)',
-                    transition: 'all 0.25s', cursor: 'pointer',
-                    border: '2px solid transparent',
-                  }}
-                    onMouseOver={e => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.borderColor = '#C8E6C9'; }}
-                    onMouseOut={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.borderColor = 'transparent'; }}>
-                    <div style={{ aspectRatio: '1', overflow: 'hidden', background: '#F1F8E9' }}>
-                      <img src={cat.imageUrl || '/placeholder.jpg'} alt={cat.name}
-                        style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.4s' }}
-                        onMouseOver={e => e.target.style.transform = 'scale(1.08)'}
-                        onMouseOut={e => e.target.style.transform = 'scale(1)'} />
-                    </div>
-                    <div style={{ padding: '10px 8px', textAlign: 'center' }}>
-                      <p style={{ fontWeight: 700, fontSize: 12, color: '#1F2937', lineHeight: 1.3 }}>{cat.name}</p>
-                    </div>
-                  </div>
-                </Link>
               ))}
-          </div>
-        </div>
-      </section>
-
-      {/* New Launch Products */}
-      <section className="section" style={{ background: 'white' }}>
-        <div className="container">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
-            <div>
-              <h2 className="section-title">Latest Products</h2>
-              <p style={{ fontSize: 13, color: '#6B7280', marginTop: 12 }}>Freshly added items just for you</p>
             </div>
-            <Link href="/collections/new-launch" style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#1B5E20', fontWeight: 700, fontSize: 13 }}>
-              View All <ChevronRight style={{ width: 16 }} />
-            </Link>
-          </div>
-          <div className="products-grid">
-            {loading
-              ? Array(8).fill(0).map((_, i) => (
-                <div key={i} style={{ borderRadius: 12 }}>
-                  <Skeleton h={180} radius={12} />
-                  <div style={{ padding: 12 }}>
-                    <Skeleton h={12} radius={4} w="60%" />
-                    <Skeleton h={14} radius={4} />
-                    <Skeleton h={14} radius={4} w="80%" />
-                    <Skeleton h={20} radius={4} w="50%" />
-                  </div>
-                </div>
-              ))
-              : newProducts.slice(0, 8).map((p) => <ProductCard key={p.id} product={p} />)
-            }
-          </div>
+          ) : (
+            <div className="overflow-x-auto hide-scroll">
+              <div className="flex gap-4 pb-2 min-w-max md:grid md:grid-cols-8 md:min-w-0">
+                {categories.slice(0, 16).map(cat => (
+                  <Link key={cat.id} href={`/categories/${cat.slug}`} className="flex flex-col items-center gap-2 group w-20 md:w-auto">
+                    <div className="w-16 h-16 md:w-20 md:h-20 rounded-full overflow-hidden border-2 border-gray-100 group-hover:border-primary-900 transition-all bg-gray-50 flex items-center justify-center flex-shrink-0">
+                      {cat.image ? (
+                        <img src={cat.image} alt={cat.name}
+                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                          onError={e => { e.target.onerror = null; e.target.src = NO_IMG; }}
+                        />
+                      ) : (
+                        <Package className="w-8 h-8 text-gray-300" />
+                      )}
+                    </div>
+                    <p className="text-xs font-semibold text-gray-700 text-center leading-tight line-clamp-2 w-full group-hover:text-primary-900 transition-colors">
+                      {cat.name}
+                    </p>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </section>
 
-      {/* Promo Banner */}
-      <section style={{ background: 'linear-gradient(135deg, #FF6F00, #FFA000)', padding: '32px 16px' }}>
-        <div className="container" style={{ textAlign: 'center', color: 'white' }}>
-          <h2 style={{ fontFamily: 'Sora', fontWeight: 800, fontSize: 'clamp(20px, 4vw, 32px)', color: 'white', marginBottom: 8 }}>
-            🚜 Special Offers for Farmers
-          </h2>
-          <p style={{ fontSize: 14, opacity: 0.9, marginBottom: 24 }}>Get up to 1.5% extra discount on all prepaid orders!</p>
-          <Link href="/collections/new-launch" className="btn" style={{ background: 'white', color: '#FF6F00', fontWeight: 800 }}>
-            Shop Now & Save <ArrowRight style={{ width: 16 }} />
-          </Link>
-        </div>
-      </section>
-
-      {/* Fans Collection */}
-      {fanProducts.length > 0 && (
-        <section className="section">
-          <div className="container">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
-              <h2 className="section-title">Fans & Lighting</h2>
-              <Link href="/collections/fans" style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#1B5E20', fontWeight: 700, fontSize: 13 }}>
-                View All <ChevronRight style={{ width: 16 }} />
+      {/* PROMO BANNERS */}
+      <section className="py-4 bg-gray-50">
+        <div className="container mx-auto px-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="rounded-2xl overflow-hidden relative" style={{ background: 'linear-gradient(135deg,#1B5E20,#43A047)', minHeight: 140 }}>
+            <div className="absolute -right-6 -bottom-6 w-36 h-36 rounded-full bg-white/10" />
+            <div className="absolute right-8 -top-4 w-20 h-20 rounded-full bg-white/10" />
+            <div className="p-6 text-white relative z-10">
+              <p className="text-xs font-bold uppercase tracking-widest opacity-80 mb-1">Up to 30% off</p>
+              <h3 className="font-heading font-extrabold text-xl mb-3">Farm Equipment<br />Super Sale</h3>
+              <Link href="/products" className="inline-flex items-center gap-1.5 bg-white text-primary-900 text-xs font-bold px-4 py-2 rounded-full hover:bg-primary-50 transition-colors">
+                Shop Now <ArrowRight className="w-3 h-3" />
               </Link>
             </div>
-            <div className="products-grid">
-              {fanProducts.slice(0, 8).map((p) => <ProductCard key={p.id} product={p} />)}
+          </div>
+          <div className="rounded-2xl overflow-hidden relative" style={{ background: 'linear-gradient(135deg,#E65100,#FF8F00)', minHeight: 140 }}>
+            <div className="absolute -right-6 -bottom-6 w-36 h-36 rounded-full bg-white/10" />
+            <div className="absolute right-8 -top-4 w-20 h-20 rounded-full bg-white/10" />
+            <div className="p-6 text-white relative z-10">
+              <p className="text-xs font-bold uppercase tracking-widest opacity-80 mb-1">Prepaid Orders</p>
+              <h3 className="font-heading font-extrabold text-xl mb-3">Extra 1.5% off<br />on All Prepaid</h3>
+              <Link href="/products" className="inline-flex items-center gap-1.5 bg-white text-orange-700 text-xs font-bold px-4 py-2 rounded-full hover:bg-orange-50 transition-colors">
+                Grab Deal <Zap className="w-3 h-3" />
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* FEATURED PRODUCTS */}
+      {(loading || featured.length > 0) && (
+        <section className="py-8 md:py-12 bg-white">
+          <div className="container mx-auto px-4">
+            <SectionHead label="Featured Products" tag="Handpicked by our experts" href="/products?featured=true" />
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+              {loading
+                ? Array(5).fill(0).map((_, i) => <ProductSkeleton key={i} />)
+                : featured.map(p => <ProductCard key={p.id} product={p} />)
+              }
             </div>
           </div>
         </section>
       )}
 
-      {/* App Download Banner */}
-      <section style={{ background: '#0F2412', padding: '40px 16px' }}>
-        <div className="container" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 24 }}>
-          <div style={{ color: 'white' }}>
-            <h2 style={{ fontFamily: 'Sora', fontWeight: 800, fontSize: 'clamp(20px, 3vw, 28px)', color: 'white', marginBottom: 8 }}>
-              📱 Download Our App
-            </h2>
-            <p style={{ color: '#9CA3AF', fontSize: 14, marginBottom: 20 }}>Get exclusive app-only deals and track orders in real-time</p>
-            <a href="https://play.google.com/store/apps/details?id=app.shoopy.kjn_trading_company" target="_blank" rel="noopener noreferrer">
-              <img src="https://image.cdn.shpy.in/static/web-store/get-it-on-google-play-badge.png" alt="Get it on Google Play" style={{ height: 48 }} />
-            </a>
+      {/* BRANDS STRIP */}
+      {(loading || brands.length > 0) && (
+        <section className="py-8 bg-gray-50">
+          <div className="container mx-auto px-4">
+            <SectionHead label="Top Brands" tag="Trusted names in agriculture" href="/brands" />
+            <div className="overflow-x-auto hide-scroll">
+              <div className="flex gap-4 pb-2 min-w-max md:flex-wrap md:justify-center md:min-w-0">
+                {loading
+                  ? Array(8).fill(0).map((_, i) => <Skel key={i} h={72} w={120} r={12} />)
+                  : brands.map(b => (
+                    <Link key={b.id} href={`/brands/${b.slug}`}
+                      className="flex-shrink-0 w-28 h-16 bg-white rounded-xl border border-gray-100 hover:border-primary-900 hover:shadow-md transition-all flex items-center justify-center p-3">
+                      {b.logo
+                        ? <img src={b.logo} alt={b.name} className="max-w-full max-h-full object-contain"
+                            onError={e => { e.target.onerror = null; e.target.style.display = 'none'; }}
+                          />
+                        : <span className="text-xs font-bold text-gray-600 text-center">{b.name}</span>
+                      }
+                    </Link>
+                  ))
+                }
+              </div>
+            </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, maxWidth: 400 }}>
+        </section>
+      )}
+
+      {/* NEW ARRIVALS */}
+      {(loading || newest.length > 0) && (
+        <section className="py-8 md:py-12 bg-white">
+          <div className="container mx-auto px-4">
+            <SectionHead label="New Arrivals" tag="Just added to our store" href="/products?sort=newest" />
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+              {loading
+                ? Array(5).fill(0).map((_, i) => <ProductSkeleton key={i} />)
+                : newest.map(p => <ProductCard key={p.id} product={p} />)
+              }
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* WHY CHOOSE US */}
+      <section className="py-10 md:py-16" style={{ background: 'linear-gradient(135deg,#0F2412 0%,#1B5E20 100%)' }}>
+        <div className="container mx-auto px-4 text-center text-white">
+          <h2 className="font-heading font-extrabold text-2xl md:text-4xl mb-2">Why Farmers Choose KJN</h2>
+          <p className="text-white/70 mb-10 text-sm md:text-base">Serving the farming community since day one</p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-3xl mx-auto">
             {[
-              { val: '1000+', label: 'Products' },
-              { val: '50+', label: 'Brands' },
-              { val: '10K+', label: 'Happy Farmers' },
-              { val: '4.8★', label: 'App Rating' },
-            ].map(({ val, label }) => (
-              <div key={label} style={{ background: 'rgba(255,255,255,0.07)', borderRadius: 12, padding: '16px', textAlign: 'center' }}>
-                <div style={{ fontFamily: 'Sora', fontWeight: 800, fontSize: 24, color: '#4ade80' }}>{val}</div>
-                <div style={{ fontSize: 12, color: '#9CA3AF', fontWeight: 600 }}>{label}</div>
+              { val: '1000+', label: 'Products',        icon: Package  },
+              { val: '50+',   label: 'Brands',          icon: Star     },
+              { val: '10K+',  label: 'Happy Customers', icon: TrendingUp },
+              { val: '4.8',   label: 'Avg Rating',      icon: Star     },
+            ].map(({ val, label, icon: Icon }) => (
+              <div key={label} className="bg-white/10 rounded-2xl p-4 md:p-6 backdrop-blur-sm">
+                <Icon className="w-6 h-6 text-green-400 mx-auto mb-2" />
+                <div className="font-heading font-extrabold text-2xl md:text-3xl text-white mb-1">{val}</div>
+                <div className="text-xs text-white/60 font-semibold">{label}</div>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* APP CTA */}
+      <section className="py-8 bg-white">
+        <div className="container mx-auto px-4">
+          <div className="rounded-2xl bg-gray-50 border border-gray-100 p-6 md:p-10 flex flex-col md:flex-row items-center gap-6 md:gap-12">
+            <div className="flex-1 text-center md:text-left">
+              <p className="text-xs font-bold text-primary-900 uppercase tracking-widest mb-2">Mobile App</p>
+              <h3 className="font-heading font-extrabold text-2xl text-gray-900 mb-2">Shop Smarter on the App</h3>
+              <p className="text-gray-600 text-sm mb-5">Exclusive app-only deals and real-time order tracking.</p>
+              <a href="https://play.google.com/store/apps/details?id=app.shoopy.kjn_trading_company" target="_blank" rel="noopener noreferrer">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/7/78/Google_Play_Store_badge_EN.svg" alt="Get it on Google Play" className="h-12" />
+              </a>
+            </div>
+            <div className="flex gap-3 flex-wrap justify-center">
+              {[
+                { val: '1000+', label: 'Products'  },
+                { val: '10K+',  label: 'Downloads' },
+                { val: '4.8',   label: 'Rating'    },
+              ].map(({ val, label }) => (
+                <div key={label} className="bg-white rounded-xl border border-gray-200 px-6 py-4 text-center shadow-sm">
+                  <div className="font-heading font-extrabold text-xl text-primary-900">{val}</div>
+                  <div className="text-xs text-gray-500 font-semibold mt-1">{label}</div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </section>

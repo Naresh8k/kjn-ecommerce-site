@@ -24,7 +24,11 @@ const placeOrder = async (req, res) => {
       include: {
         items: {
           include: {
-            product: true,
+            product: {
+              include: {
+                images: { orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }], take: 1 },
+              },
+            },
             variant: true,
           },
         },
@@ -58,7 +62,7 @@ const placeOrder = async (req, res) => {
         productId: item.productId,
         variantId: item.variantId || null,
         productName: item.product.name,
-        productImage: null,
+        productImage: item.product.images?.[0]?.image || null,
         variantInfo: item.variant ? `${item.variant.variantName}: ${item.variant.variantValue}` : null,
         quantity: item.quantity,
         unitPrice: parseFloat(item.priceAtAdd),
@@ -180,7 +184,15 @@ const getMyOrders = async (req, res) => {
         skip, take: parseInt(limit),
         orderBy: { createdAt: 'desc' },
         include: {
-          items: { include: { product: { include: { images: { where: { isPrimary: true }, take: 1 } } } } },
+          items: {
+            include: {
+              product: {
+                include: {
+                  images: { orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }], take: 1 },
+                },
+              },
+            },
+          },
           shippingAddress: true,
         },
       }),
@@ -205,7 +217,16 @@ const getOrderById = async (req, res) => {
     const order = await prisma.order.findFirst({
       where: { id, userId },
       include: {
-        items: { include: { product: { include: { images: { where: { isPrimary: true }, take: 1 } } }, variant: true } },
+        items: {
+          include: {
+            product: {
+              include: {
+                images: { orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }], take: 1 },
+              },
+            },
+            variant: true,
+          },
+        },
         shippingAddress: true,
         user: { select: { name: true, email: true, phone: true } },
       },

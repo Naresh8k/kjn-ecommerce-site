@@ -10,10 +10,14 @@ export default function Footer() {
       <div style={{ background: 'linear-gradient(135deg, #1B5E20, #2E7D32)', padding: '20px 0' }}>
         <div className="container" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ width: 44, height: 44, background: 'rgba(255,255,255,0.15)', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontFamily: 'Sora', fontWeight: 800, fontSize: 18 }}>KJN</div>
+            <img
+              src="https://image.cdn.shpy.in/386933/KJNLogo-1767688579320.jpeg?height=200&format=webp"
+              alt="KJN Shop"
+              style={{ height: 44, objectFit: 'contain' }}
+            />
             <div>
               <div style={{ color: 'white', fontFamily: 'Sora', fontWeight: 800, fontSize: 18 }}>KJN Shop</div>
-              <div style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12 }}>Your Farm Equipment Partner</div>
+              {/* tagline removed */}
             </div>
           </div>
           <div style={{ display: 'flex', gap: 12 }}>

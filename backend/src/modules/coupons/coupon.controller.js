@@ -30,10 +30,18 @@ const createCoupon = async (req, res) => {
 
 const getAllCoupons = async (req, res) => {
   try {
-    const coupons = await prisma.coupon.findMany({ orderBy: { createdAt: 'desc' } });
+    const coupons = await prisma.coupon.findMany({ 
+      orderBy: { code: 'asc' },
+      include: {
+        _count: {
+          select: { usages: true }
+        }
+      }
+    });
     return res.status(200).json({ success: true, data: coupons });
   } catch (error) {
-    return res.status(500).json({ success: false, message: 'Server error' });
+    console.error('getAllCoupons error:', error);
+    return res.status(500).json({ success: false, message: error.message || 'Server error' });
   }
 };
 
@@ -87,4 +95,29 @@ const validateCoupon = async (req, res) => {
   }
 };
 
-module.exports = { createCoupon, getAllCoupons, toggleCoupon, validateCoupon };
+const getActiveCoupons = async (req, res) => {
+  try {
+    const now = new Date();
+    const coupons = await prisma.coupon.findMany({
+      where: {
+        isActive: true,
+        OR: [{ validFrom: null }, { validFrom: { lte: now } }],
+        OR: [{ validUntil: null }, { validUntil: { gte: now } }],
+      },
+      select: {
+        code: true,
+        type: true,
+        value: true,
+        minOrderAmount: true,
+        maxDiscount: true,
+        validUntil: true,
+      },
+      orderBy: { value: 'desc' },
+    });
+    return res.status(200).json({ success: true, data: coupons });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+module.exports = { createCoupon, getAllCoupons, getActiveCoupons, toggleCoupon, validateCoupon };

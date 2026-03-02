@@ -1,0 +1,955 @@
+import { useState, useEffect, useRef } from "react";
+
+// ══════════════════════════════════════════════════════════════
+// KJN SHOP — UX IMPROVEMENTS GUIDE
+// Interactive showcase of all admin + customer improvements
+// ══════════════════════════════════════════════════════════════
+
+const TABS = ["Customer UX", "Admin UX", "Live Demos"];
+
+// ── Icons (inline SVGs) ───────────────────────────────────────
+const Icon = ({ name, size = 18, color = "currentColor" }) => {
+  const icons = {
+    star: <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>,
+    cart: <><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></>,
+    heart: <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>,
+    search: <><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></>,
+    check: <polyline points="20 6 9 12 4 9"/>,
+    arrow: <><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></>,
+    bell: <><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></>,
+    filter: <><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></>,
+    tag: <><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></>,
+    truck: <><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></>,
+    zap: <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>,
+    eye: <><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></>,
+    upload: <><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></>,
+    grid: <><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></>,
+    chart: <><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></>,
+    bolt: <><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></>,
+    phone: <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.07 9a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3 .18h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.09 7.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>,
+    whatsapp: <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>,
+    users: <><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></>,
+    settings: <><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></>,
+  };
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{display:"inline-block",verticalAlign:"middle",flexShrink:0}}>
+      {icons[name]}
+    </svg>
+  );
+};
+
+// ── Color system ──────────────────────────────────────────────
+const C = {
+  green:  "#16A34A",
+  greenD: "#14532D",
+  greenL: "#DCFCE7",
+  orange: "#EA580C",
+  orangeL:"#FFF7ED",
+  gold:   "#D97706",
+  goldL:  "#FFFBEB",
+  blue:   "#2563EB",
+  blueL:  "#EFF6FF",
+  purple: "#7C3AED",
+  purpleL:"#F5F3FF",
+  red:    "#DC2626",
+  redL:   "#FEF2F2",
+  gray1:  "#111827",
+  gray2:  "#374151",
+  gray3:  "#6B7280",
+  gray4:  "#9CA3AF",
+  gray5:  "#E5E7EB",
+  gray6:  "#F9FAFB",
+  white:  "#FFFFFF",
+};
+
+// ─────────────────────────────────────────────────────────────
+// CUSTOMER IMPROVEMENTS DATA
+// ─────────────────────────────────────────────────────────────
+const customerImprovements = [
+  {
+    category: "🏠 Homepage",
+    color: C.green,
+    bg: C.greenL,
+    items: [
+      {
+        title: "Sticky Announcement Bar",
+        why: "Grab attention instantly with offers",
+        what: 'Scrolling marquee bar at very top: "🚜 Free Shipping on orders ₹500+ | 🎉 New Launch: Agrimate Water Pump | 💳 1.5% off prepaid orders"',
+        impact: "high",
+      },
+      {
+        title: "Hero Section with CTA + Counter",
+        why: "Convert visitors faster",
+        what: 'Full-width hero with animated counter: "10,000+ Farmers Trust KJN" with shop now button and product image. Replace static banner with animated slideshow (auto-play every 4s).',
+        impact: "high",
+      },
+      {
+        title: "Flash Sale Countdown Timer",
+        why: "Creates urgency, boosts conversions",
+        what: "Real-time countdown on homepage: 'Today's Deal ends in 04:32:17' with the deal product shown prominently. Pulls from admin-set sale end time.",
+        impact: "high",
+      },
+      {
+        title: "Search Bar Front & Center",
+        why: "Farmers know what they want — help them find it fast",
+        what: "Large hero search bar with trending searches below: 'Popular: Battery Sprayer, Water Pump, Ceiling Fan, Chaff Cutter'",
+        impact: "high",
+      },
+      {
+        title: "Recently Viewed Products",
+        why: "Bring customers back to where they left off",
+        what: "Horizontal scroll section 'Continue where you left off' — shows last 6 products viewed. Stored in localStorage.",
+        impact: "medium",
+      },
+    ],
+  },
+  {
+    category: "🛍️ Product Pages",
+    color: C.orange,
+    bg: C.orangeL,
+    items: [
+      {
+        title: "Stock Urgency Indicator",
+        why: "Low stock = FOMO = faster purchase decision",
+        what: '⚠️ Only 3 left in stock! shown in red when stock ≤ 5. "In Stock" in green. "Out of Stock" with notify button when 0.',
+        impact: "high",
+      },
+      {
+        title: "EMI / Buy Now Pay Later Info",
+        why: "High-value farm equipment is expensive — make it affordable",
+        what: "Show EMI options below price: 'From ₹875/month with Razorpay Pay Later | 0% EMI on HDFC cards'",
+        impact: "high",
+      },
+      {
+        title: "Sticky Add to Cart on Mobile",
+        why: "Customers scroll past the button and forget",
+        what: "Fixed bottom bar on mobile: product name + price + Add to Cart button. Appears after scrolling past the main button.",
+        impact: "high",
+      },
+      {
+        title: "Product Videos",
+        why: "Farm equipment needs to be SEEN working",
+        what: "Add video tab on product page. YouTube embed or direct upload. Show 'Watch it work' label on products with video.",
+        impact: "medium",
+      },
+      {
+        title: "Delivery Date Estimator",
+        why: "Reduces anxiety about when product arrives",
+        what: 'After pincode check: "Order in next 2 hours → Get it by Tomorrow, Sunday" or "Estimated delivery: March 5-6"',
+        impact: "high",
+      },
+      {
+        title: "Compare Products",
+        why: "Farmers compare specs before buying motors/pumps",
+        what: "Compare up to 3 products side-by-side. Floating 'Compare' button appears on product card hover. Comparison page shows spec table.",
+        impact: "medium",
+      },
+      {
+        title: "'Bought Together' Bundle",
+        why: "Increase average order value",
+        what: "Battery Sprayer + Nozzle Set + Spare Battery shown together with 'Buy All 3 for ₹5,499 (save ₹400)' bundle price.",
+        impact: "high",
+      },
+    ],
+  },
+  {
+    category: "🛒 Cart & Checkout",
+    color: C.blue,
+    bg: C.blueL,
+    items: [
+      {
+        title: "Free Shipping Progress Bar",
+        why: "Encourage higher cart values",
+        what: "Add ₹127 more to get FREE shipping! Progress bar fills as cart value increases. Cross-sell suggestion below bar.",
+        impact: "high",
+      },
+      {
+        title: "Cart Abandonment Save",
+        why: "Most customers leave cart without buying",
+        what: "Before closing tab: 'Wait! Your cart has items. Save for later?' WhatsApp reminder if phone is saved. Exit-intent popup with 5% discount.",
+        impact: "high",
+      },
+      {
+        title: "1-Click Reorder",
+        why: "Farmers reorder consumables (nozzles, pipes) regularly",
+        what: "'Reorder' button on past orders. One click adds all items from a previous order back to cart.",
+        impact: "medium",
+      },
+      {
+        title: "Address Auto-Fill",
+        why: "Checkout friction killer",
+        what: "Pincode auto-fills city + state instantly. Google Places API for address suggestions. Save & select from previous addresses in 1 tap.",
+        impact: "high",
+      },
+      {
+        title: "Trust Signals at Checkout",
+        why: "Reduce payment hesitation",
+        what: 'Show: 🔒 "100% Secure Payment" | ✅ "Easy 7-day returns" | 🚚 "Free shipping above ₹500" | ⭐ "9,000+ happy customers" at bottom of checkout form.',
+        impact: "medium",
+      },
+      {
+        title: "Order Summary Always Visible",
+        why: "Customers want to see what they're paying for",
+        what: "On desktop, sticky right column shows order summary throughout the checkout flow. On mobile, expandable order summary at top.",
+        impact: "medium",
+      },
+    ],
+  },
+  {
+    category: "⭐ Trust & Social Proof",
+    color: C.purple,
+    bg: C.purpleL,
+    items: [
+      {
+        title: "Real Customer Photos in Reviews",
+        why: "Photos are more trustworthy than text",
+        what: "Allow customers to upload product photos with their review. Show photo reviews in a separate tab. Tag verified purchase badge.",
+        impact: "high",
+      },
+      {
+        title: "Review Summary Bar",
+        why: "Quick visual trust signal",
+        what: "5★ bar chart showing distribution: 5★ ████████ 68%, 4★ ████ 22%, 3★ ██ 7%, etc. With overall rating number prominent.",
+        impact: "medium",
+      },
+      {
+        title: "Live Purchase Notifications",
+        why: "Social proof in action",
+        what: 'Bottom-left popup: "🛒 Rajesh from Kurnool just bought Neptune Sprayer 2 minutes ago" — appears every 30-60 seconds. Real data from recent orders.',
+        impact: "medium",
+      },
+      {
+        title: "Farmer Testimonials Section",
+        why: "Target audience identity — farmers trust other farmers",
+        what: "Homepage section: 'What KJN Farmers Say' with farmer photos, village name, and product they bought. E.g., 'Suresh Reddy, Chittoor — My Agrimate pump saved my harvest!'",
+        impact: "high",
+      },
+      {
+        title: "Google Reviews Widget",
+        why: "External validation from Google",
+        what: "Embed Google Business reviews on homepage or product pages. Shows star rating from Google.",
+        impact: "medium",
+      },
+    ],
+  },
+  {
+    category: "📱 Mobile Experience",
+    color: C.gold,
+    bg: C.goldL,
+    items: [
+      {
+        title: "WhatsApp Order Support",
+        why: "Rural customers prefer WhatsApp over chat forms",
+        what: "Product page: 'Ask on WhatsApp' button that pre-fills: 'Hi, I want to ask about [product name]' message to 9440658294.",
+        impact: "high",
+      },
+      {
+        title: "Call to Order Button",
+        why: "Many rural customers prefer calling",
+        what: 'Floating "Call to Order: 9804599804" button on mobile. Opens phone dialer directly. Show on all product pages.',
+        impact: "high",
+      },
+      {
+        title: "PWA + Add to Home Screen",
+        why: "App-like experience without App Store",
+        what: "Install KJN Shop on your phone home screen. Offline browsing for previously visited pages. Push notifications for order updates.",
+        impact: "medium",
+      },
+      {
+        title: "Swipe Gestures on Product Gallery",
+        why: "Intuitive mobile image browsing",
+        what: "Swipe left/right to browse product images. Pinch to zoom. Thumbnail strip below. Current image indicator dots.",
+        impact: "medium",
+      },
+      {
+        title: "Fast Loading (Performance)",
+        why: "Rural internet is slow — every second lost = lost customer",
+        what: "Lazy load all images. Use WebP format. Skeleton loaders. Cache product data. Target <2s load time on 4G.",
+        impact: "high",
+      },
+    ],
+  },
+  {
+    category: "🎁 Loyalty & Retention",
+    color: "#BE185D",
+    bg: "#FDF2F8",
+    items: [
+      {
+        title: "KJN Rewards Points",
+        why: "Bring customers back again and again",
+        what: "Earn 1 point per ₹10 spent. 100 points = ₹10 off. Show points balance on account page and at checkout. 'You're 40 points away from ₹100 off!'",
+        impact: "high",
+      },
+      {
+        title: "Birthday / Festival Discount",
+        why: "Personal touch builds loyalty",
+        what: "Collect birthday during signup. Auto-send WhatsApp on birthday: 'Happy Birthday! Here's 10% off from KJN Shop 🎂'. Diwali/Pongal special coupons.",
+        impact: "medium",
+      },
+      {
+        title: "Refer a Friend",
+        why: "Word-of-mouth is #1 in farming communities",
+        what: "Share referral link. Friend gets ₹100 off first order. You get ₹100 when they buy. Tracked automatically.",
+        impact: "high",
+      },
+      {
+        title: "Back in Stock Alert",
+        why: "Recover lost sales on out-of-stock products",
+        what: "'Notify me when available' button on sold-out products. Auto-WhatsApp/SMS when stock is added by admin.",
+        impact: "medium",
+      },
+    ],
+  },
+];
+
+const adminImprovements = [
+  {
+    category: "📊 Dashboard",
+    color: C.green,
+    bg: C.greenL,
+    items: [
+      {
+        title: "Revenue Charts (Daily/Weekly/Monthly)",
+        why: "Right now dashboard shows only numbers — hard to spot trends",
+        what: "Line chart: Revenue this month vs last month. Bar chart: Orders per day. Peak hours heatmap. All built with recharts.",
+        impact: "high",
+      },
+      {
+        title: "Quick Action Buttons",
+        why: "Most common tasks should be 1 click away",
+        what: "Dashboard top row: [+ Add Product] [📦 Pending Orders (12)] [⚠️ Low Stock (5)] [💬 WhatsApp Support]. Colored badges with counts.",
+        impact: "high",
+      },
+      {
+        title: "Today's Summary Card",
+        why: "Owner wants to know today's performance at a glance",
+        what: "Card at top: Today — ₹24,500 revenue | 8 orders | 3 new customers | 2 orders need action",
+        impact: "high",
+      },
+      {
+        title: "Live Order Feed",
+        why: "Know when new orders come in without refreshing",
+        what: "Real-time updates using polling every 30 seconds. New order appears with animation at top of list. Browser notification sound option.",
+        impact: "medium",
+      },
+    ],
+  },
+  {
+    category: "📦 Orders Management",
+    color: C.orange,
+    bg: C.orangeL,
+    items: [
+      {
+        title: "Bulk Order Status Update",
+        why: "Updating 20 orders one by one wastes time",
+        what: "Checkbox on each row. Select all + bulk action: 'Mark selected as CONFIRMED' or 'Print invoices for selected'. Process 50 orders in 10 seconds.",
+        impact: "high",
+      },
+      {
+        title: "Order Invoice PDF",
+        why: "Customers want receipts, admin needs records",
+        what: "Print/Download button on each order. Auto-generated PDF with company logo, GST details, product list, totals. One-click send to customer WhatsApp.",
+        impact: "high",
+      },
+      {
+        title: "Smart Order Filters",
+        why: "Finding specific orders is slow",
+        what: "Filter by: Date range picker, Payment method (COD/Online), Order value range (₹500-₹2000), Pincode/City, COD pending, Returns. Save filter as preset.",
+        impact: "high",
+      },
+      {
+        title: "Order Notes & Internal Tags",
+        why: "Context for customer support",
+        what: "Add internal notes to orders (not visible to customer): 'Customer called — requested delay' or 'Fragile — handle carefully'. Tag: #priority #return #vip",
+        impact: "medium",
+      },
+      {
+        title: "COD Confirmation Call Tracker",
+        why: "Reduce COD fraudulent orders",
+        what: "For every COD order: 'Call Confirmed' checkbox. Auto-show COD orders that need confirmation call. Add note of when called.",
+        impact: "medium",
+      },
+      {
+        title: "Return Management",
+        why: "Currently no return workflow",
+        what: "Customer requests return → admin sees in Returns tab → approve/reject with reason → log refund amount → mark resolved. Full audit trail.",
+        impact: "high",
+      },
+    ],
+  },
+  {
+    category: "📦 Products Management",
+    color: C.blue,
+    bg: C.blueL,
+    items: [
+      {
+        title: "Bulk Product CSV Import",
+        why: "Adding 500 products one-by-one is impossible",
+        what: "Download CSV template → fill in Excel → Upload CSV → preview changes → confirm import. 500 products in 5 minutes. Duplicate detection.",
+        impact: "high",
+      },
+      {
+        title: "Product Duplication",
+        why: "Many products are similar (same brand, different size)",
+        what: "'Duplicate' button on each product. Creates a copy with all fields. Change only what's different (size, price, images). Saves 80% time on similar products.",
+        impact: "high",
+      },
+      {
+        title: "SEO Fields",
+        why: "Products need to rank on Google",
+        what: "Add SEO tab in product form: Meta Title, Meta Description, Keywords. Show character count (60 for title, 160 for description). Google preview snippet.",
+        impact: "medium",
+      },
+      {
+        title: "Product Variants (Better UI)",
+        why: "Current variant system is basic",
+        what: "Visual variant builder: Click + to add size options (500ml, 1L, 2L). Each variant has its own price, stock, image. Table view for quick editing.",
+        impact: "high",
+      },
+      {
+        title: "Related Products Picker",
+        why: "Increases cross-sell revenue",
+        what: "In product form: search and select 'Related Products'. Shown on product page as 'You might also like'. Also set manually bundled products.",
+        impact: "medium",
+      },
+    ],
+  },
+  {
+    category: "📣 Marketing Tools",
+    color: C.purple,
+    bg: C.purpleL,
+    items: [
+      {
+        title: "WhatsApp Broadcast Manager",
+        why: "Send deals to all customers directly from admin",
+        what: "Compose message → select audience (all customers, last 30 days buyers, specific category buyers) → schedule → send via Interakt API. Track delivery rate.",
+        impact: "high",
+      },
+      {
+        title: "Abandoned Cart Recovery",
+        why: "70% of carts are abandoned — recover them",
+        what: "See list of carts abandoned >1 hour ago. Send WhatsApp: 'Hey [Name], you left [product] in your cart! Here's 5% off: SAVE5'. Track recovery rate.",
+        impact: "high",
+      },
+      {
+        title: "Flash Sale Creator",
+        why: "Quick sales without needing developer",
+        what: "Set: product, original price, sale price, sale ends time. Auto-shows countdown timer on homepage. Auto-reverts to normal price when timer ends.",
+        impact: "high",
+      },
+      {
+        title: "Coupon Performance Dashboard",
+        why: "Know which coupons are working",
+        what: "For each coupon: Total uses, Revenue generated, Average order value when used, Conversion rate. Top performing coupon highlighted.",
+        impact: "medium",
+      },
+    ],
+  },
+  {
+    category: "⚙️ Operations",
+    color: "#0891B2",
+    bg: "#E0F7FA",
+    items: [
+      {
+        title: "Low Stock Auto-Alert",
+        why: "Never run out of stock unexpectedly",
+        what: "Set threshold per product (e.g. alert when stock ≤ 5). WhatsApp alert to admin automatically. Dashboard shows low stock count badge.",
+        impact: "high",
+      },
+      {
+        title: "Automatic Order Notifications",
+        why: "Admin currently sends updates manually",
+        what: "When admin changes status to SHIPPED → auto-sends WhatsApp to customer with AWB. When DELIVERED → auto-sends review request. Zero manual messages needed.",
+        impact: "high",
+      },
+      {
+        title: "Staff Account with Permissions",
+        why: "Owner shouldn't share ADMIN account with staff",
+        what: "Create STAFF accounts. Set permissions: can see orders, can update status, CANNOT delete products, CANNOT see revenue. Role-based access per page.",
+        impact: "medium",
+      },
+      {
+        title: "Inventory Export",
+        why: "CA and accountant need stock data",
+        what: "Export all products with current stock, purchase price, selling price to Excel. Monthly inventory report with changes. GST-wise report.",
+        impact: "medium",
+      },
+      {
+        title: "Backup & Restore",
+        why: "Protect against data loss",
+        what: "Daily automatic database backup. Download backup from admin. Restore from backup file. Show last backup time on dashboard.",
+        impact: "high",
+      },
+    ],
+  },
+];
+
+// ─────────────────────────────────────────────────────────────
+// DEMO COMPONENTS
+// ─────────────────────────────────────────────────────────────
+
+// Demo 1: Countdown Timer
+const CountdownDemo = () => {
+  const [time, setTime] = useState({ h: 4, m: 32, s: 17 });
+  useEffect(() => {
+    const t = setInterval(() => {
+      setTime(prev => {
+        let { h, m, s } = prev;
+        s--;
+        if (s < 0) { s = 59; m--; }
+        if (m < 0) { m = 59; h--; }
+        if (h < 0) { h = 4; m = 32; s = 17; }
+        return { h, m, s };
+      });
+    }, 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  const pad = n => String(n).padStart(2, "0");
+
+  return (
+    <div style={{ background: "linear-gradient(135deg, #14532D, #16A34A)", borderRadius: 16, padding: 20, color: "white", textAlign: "center" }}>
+      <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2, opacity: 0.8, marginBottom: 8 }}>⚡ TODAY'S FLASH DEAL ENDS IN</div>
+      <div style={{ display: "flex", justifyContent: "center", gap: 8 }}>
+        {[["Hours", time.h], ["Minutes", time.m], ["Seconds", time.s]].map(([label, val]) => (
+          <div key={label} style={{ textAlign: "center" }}>
+            <div style={{ background: "rgba(255,255,255,0.15)", borderRadius: 10, padding: "8px 14px", fontSize: 28, fontWeight: 900, fontFamily: "monospace", minWidth: 56, backdropFilter: "blur(4px)" }}>
+              {pad(val)}
+            </div>
+            <div style={{ fontSize: 10, opacity: 0.7, marginTop: 4 }}>{label}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ marginTop: 14, display: "flex", alignItems: "center", justifyContent: "center", gap: 12 }}>
+        <div style={{ width: 44, height: 44, borderRadius: 8, overflow: "hidden", background: "rgba(255,255,255,0.1)" }}>
+          <div style={{ width: "100%", height: "100%", background: "linear-gradient(135deg, rgba(255,255,255,0.2), rgba(255,255,255,0.05))", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>🌿</div>
+        </div>
+        <div style={{ textAlign: "left" }}>
+          <div style={{ fontWeight: 800, fontSize: 14 }}>Neptune Battery Sprayer 16L</div>
+          <div style={{ fontSize: 12, opacity: 0.8 }}>
+            <span style={{ textDecoration: "line-through", opacity: 0.6 }}>₹7,000</span>
+            {" "}
+            <span style={{ fontWeight: 900, fontSize: 16 }}>₹4,499</span>
+            {" "}
+            <span style={{ background: "#FCD34D", color: "#92400E", borderRadius: 6, padding: "1px 6px", fontSize: 10, fontWeight: 800 }}>36% OFF</span>
+          </div>
+        </div>
+        <button style={{ marginLeft: "auto", background: "#FCD34D", color: "#92400E", border: "none", borderRadius: 8, padding: "8px 14px", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>
+          Buy Now →
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// Demo 2: Stock + Urgency
+const StockUrgencyDemo = () => {
+  const [qty, setQty] = useState(1);
+  const [added, setAdded] = useState(false);
+  const [wishlist, setWishlist] = useState(false);
+
+  const handleAdd = () => {
+    setAdded(true);
+    setTimeout(() => setAdded(false), 2000);
+  };
+
+  return (
+    <div style={{ background: "white", border: "1px solid #E5E7EB", borderRadius: 16, padding: 20 }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: C.red, background: C.redL, display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 99, marginBottom: 12 }}>
+        🔥 Only 3 left in stock
+      </div>
+      <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 4 }}>Neptune MAX Gold 14Plus Sprayer</div>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 8 }}>
+        <span style={{ fontSize: 24, fontWeight: 900, color: C.green }}>₹4,499</span>
+        <span style={{ textDecoration: "line-through", color: C.gray4, fontSize: 14 }}>₹7,000</span>
+        <span style={{ background: C.orangeL, color: C.orange, fontSize: 11, fontWeight: 800, padding: "2px 7px", borderRadius: 99 }}>36% OFF</span>
+      </div>
+
+      {/* EMI */}
+      <div style={{ background: C.blueL, borderRadius: 8, padding: "8px 12px", fontSize: 12, color: C.blue, fontWeight: 600, marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
+        💳 EMI from ₹375/month — 0% interest on select cards
+      </div>
+
+      {/* Delivery */}
+      <div style={{ background: C.greenL, borderRadius: 8, padding: "8px 12px", fontSize: 12, color: C.greenD, marginBottom: 14 }}>
+        <span style={{ fontWeight: 700 }}>🚚 Order in next 2 hrs</span> → Delivered by <strong>Tomorrow, Sunday</strong>
+      </div>
+
+      {/* Qty + Actions */}
+      <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", border: "1px solid #E5E7EB", borderRadius: 10, overflow: "hidden" }}>
+          <button onClick={() => setQty(q => Math.max(1, q - 1))} style={{ width: 36, height: 40, background: "none", border: "none", fontSize: 18, cursor: "pointer", color: C.gray2 }}>−</button>
+          <span style={{ width: 36, textAlign: "center", fontWeight: 700 }}>{qty}</span>
+          <button onClick={() => setQty(q => q + 1)} style={{ width: 36, height: 40, background: "none", border: "none", fontSize: 18, cursor: "pointer", color: C.green }}>+</button>
+        </div>
+        <button onClick={handleAdd} style={{ flex: 1, background: added ? C.green : "linear-gradient(135deg, #16A34A, #15803D)", color: "white", border: "none", borderRadius: 10, padding: "10px 0", fontWeight: 800, fontSize: 14, cursor: "pointer", transition: "all 0.3s" }}>
+          {added ? "✓ Added to Cart!" : "Add to Cart"}
+        </button>
+        <button onClick={() => setWishlist(w => !w)} style={{ width: 44, height: 40, border: "1px solid #E5E7EB", borderRadius: 10, background: "white", cursor: "pointer", fontSize: 18 }}>
+          {wishlist ? "❤️" : "🤍"}
+        </button>
+      </div>
+
+      {/* WhatsApp */}
+      <button style={{ width: "100%", background: "#DCFCE7", color: "#14532D", border: "none", borderRadius: 10, padding: "10px 0", fontWeight: 700, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+        <Icon name="whatsapp" size={16} /> Ask on WhatsApp
+      </button>
+    </div>
+  );
+};
+
+// Demo 3: Admin Revenue Chart
+const AdminChartDemo = () => {
+  const data = [
+    { day: "Mon", rev: 12400, orders: 8 },
+    { day: "Tue", rev: 18600, orders: 12 },
+    { day: "Wed", rev: 9200,  orders: 6 },
+    { day: "Thu", rev: 24500, orders: 16 },
+    { day: "Fri", rev: 31200, orders: 21 },
+    { day: "Sat", rev: 28700, orders: 19 },
+    { day: "Sun", rev: 15300, orders: 10 },
+  ];
+  const max = Math.max(...data.map(d => d.rev));
+
+  return (
+    <div style={{ background: "white", border: "1px solid #E5E7EB", borderRadius: 16, padding: 20 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+        <div>
+          <div style={{ fontWeight: 800, fontSize: 15 }}>Weekly Revenue</div>
+          <div style={{ fontSize: 12, color: C.gray3 }}>This week vs last week</div>
+        </div>
+        <div style={{ background: C.greenL, color: C.green, fontWeight: 700, fontSize: 12, padding: "4px 10px", borderRadius: 99 }}>+18% ↑</div>
+      </div>
+      <div style={{ display: "flex", alignItems: "flex-end", gap: 6, height: 80 }}>
+        {data.map(({ day, rev }, i) => (
+          <div key={day} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+            <div style={{ width: "100%", background: i === 4 ? C.green : C.greenL, borderRadius: "4px 4px 0 0", height: `${(rev / max) * 68}px`, transition: "height 0.5s", position: "relative" }}>
+              {i === 4 && (
+                <div style={{ position: "absolute", top: -20, left: "50%", transform: "translateX(-50%)", background: C.greenD, color: "white", fontSize: 9, padding: "2px 5px", borderRadius: 4, whiteSpace: "nowrap" }}>
+                  ₹{(rev/1000).toFixed(1)}k
+                </div>
+              )}
+            </div>
+            <div style={{ fontSize: 10, color: C.gray3, fontWeight: i === 4 ? 700 : 400 }}>{day}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ borderTop: "1px solid #F3F4F6", paddingTop: 12, marginTop: 12, display: "flex", justifyContent: "space-between" }}>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 18, fontWeight: 900, color: C.green }}>₹1.4L</div>
+          <div style={{ fontSize: 11, color: C.gray3 }}>This Week</div>
+        </div>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 18, fontWeight: 900, color: C.gray1 }}>92</div>
+          <div style={{ fontSize: 11, color: C.gray3 }}>Orders</div>
+        </div>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 18, fontWeight: 900, color: C.orange }}>₹1,521</div>
+          <div style={{ fontSize: 11, color: C.gray3 }}>Avg Order</div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Demo 4: Free Shipping Progress
+const ShippingProgressDemo = () => {
+  const [cartValue, setCartValue] = useState(373);
+  const target = 500;
+  const remaining = Math.max(0, target - cartValue);
+  const pct = Math.min(100, (cartValue / target) * 100);
+  const done = cartValue >= target;
+
+  return (
+    <div style={{ background: "white", border: "1px solid #E5E7EB", borderRadius: 16, padding: 20 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+        <span style={{ fontSize: 13, fontWeight: 700, color: done ? C.green : C.gray2 }}>
+          {done ? "🎉 You've unlocked FREE shipping!" : `Add ₹${remaining} more for FREE shipping`}
+        </span>
+        <span style={{ fontSize: 12, color: C.gray3 }}>₹{cartValue}/₹{target}</span>
+      </div>
+      <div style={{ height: 8, background: "#F3F4F6", borderRadius: 99, overflow: "hidden", marginBottom: 16 }}>
+        <div style={{ height: "100%", background: done ? C.green : "linear-gradient(90deg, #16A34A, #22C55E)", width: `${pct}%`, borderRadius: 99, transition: "width 0.5s" }} />
+      </div>
+      <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12 }}>
+        <input type="range" min={0} max={700} value={cartValue} onChange={e => setCartValue(+e.target.value)}
+          style={{ flex: 1, accentColor: C.green }} />
+        <span style={{ fontSize: 12, color: C.gray3, width: 60 }}>Cart: ₹{cartValue}</span>
+      </div>
+      {!done && (
+        <div style={{ background: C.greenL, borderRadius: 10, padding: "10px 14px" }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: C.greenD, marginBottom: 4 }}>💡 Suggested add-ons:</div>
+          {[{ name: "Spare Nozzle Set", price: 149 }, { name: "Spray Hose 5m", price: 179 }].map(p => (
+            <div key={p.name} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, padding: "2px 0" }}>
+              <span>{p.name}</span>
+              <button onClick={() => setCartValue(v => v + p.price)} style={{ background: C.green, color: "white", border: "none", borderRadius: 6, padding: "2px 8px", fontSize: 11, cursor: "pointer" }}>+ ₹{p.price}</button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Demo 5: Live Order Notification
+const LiveNotifDemo = () => {
+  const orders = [
+    { name: "Ramesh K.", city: "Kurnool", product: "Agrimate Water Pump", time: "2 mins ago", img: "🚿" },
+    { name: "Suresh R.", city: "Chittoor", product: "Neptune Sprayer 16L", time: "5 mins ago", img: "🌿" },
+    { name: "Venkat M.", city: "Anantapur", product: "Anchor Ceiling Fan", time: "8 mins ago", img: "💨" },
+  ];
+  const [idx, setIdx] = useState(0);
+  const [visible, setVisible] = useState(true);
+
+  useEffect(() => {
+    const t = setInterval(() => {
+      setVisible(false);
+      setTimeout(() => { setIdx(i => (i + 1) % orders.length); setVisible(true); }, 400);
+    }, 3500);
+    return () => clearInterval(t);
+  }, []);
+
+  const o = orders[idx];
+  return (
+    <div style={{ position: "relative" }}>
+      <div style={{ fontSize: 11, color: C.gray3, marginBottom: 8, fontWeight: 600 }}>LIVE SOCIAL PROOF NOTIFICATION</div>
+      <div style={{ transform: visible ? "translateY(0)" : "translateY(8px)", opacity: visible ? 1 : 0, transition: "all 0.4s", background: "white", border: "1px solid #E5E7EB", borderRadius: 14, padding: "12px 14px", display: "flex", alignItems: "center", gap: 12, boxShadow: "0 4px 16px rgba(0,0,0,0.08)" }}>
+        <div style={{ fontSize: 28, flexShrink: 0 }}>{o.img}</div>
+        <div>
+          <div style={{ fontWeight: 700, fontSize: 13 }}>
+            🛒 <span style={{ color: C.green }}>{o.name}</span> from {o.city}
+          </div>
+          <div style={{ fontSize: 12, color: C.gray3 }}>just bought <strong>{o.product}</strong> · {o.time}</div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Demo 6: Bulk Order Actions
+const BulkActionsDemo = () => {
+  const orders = [
+    { id: "#KJN-2041", name: "Ramesh Kumar", amount: "₹4,499", status: "PENDING" },
+    { id: "#KJN-2042", name: "Suresh Reddy", amount: "₹12,800", status: "PENDING" },
+    { id: "#KJN-2043", name: "Venkata Rao", amount: "₹2,149", status: "PENDING" },
+    { id: "#KJN-2044", name: "Narasimha M.", amount: "₹8,500", status: "CONFIRMED" },
+  ];
+  const [selected, setSelected] = useState([]);
+
+  const toggle = id => setSelected(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id]);
+  const toggleAll = () => setSelected(s => s.length === orders.length ? [] : orders.map(o => o.id));
+
+  return (
+    <div style={{ background: "white", border: "1px solid #E5E7EB", borderRadius: 16, overflow: "hidden" }}>
+      {selected.length > 0 && (
+        <div style={{ background: C.greenL, padding: "10px 14px", display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: C.greenD }}>{selected.length} orders selected</span>
+          <div style={{ display: "flex", gap: 6, marginLeft: "auto" }}>
+            {["✓ Confirm All", "🚚 Mark Shipped", "📥 Export", "🖨️ Print"].map(a => (
+              <button key={a} onClick={() => setSelected([])} style={{ background: C.green, color: "white", border: "none", borderRadius: 6, padding: "4px 10px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>{a}</button>
+            ))}
+          </div>
+        </div>
+      )}
+      <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <thead>
+          <tr style={{ background: "#F9FAFB" }}>
+            <th style={{ width: 36, padding: "10px 12px" }}>
+              <input type="checkbox" checked={selected.length === orders.length} onChange={toggleAll} style={{ accentColor: C.green }} />
+            </th>
+            {["Order", "Customer", "Amount", "Status"].map(h => (
+              <th key={h} style={{ padding: "10px 12px", textAlign: "left", fontSize: 11, fontWeight: 700, color: C.gray3 }}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {orders.map(o => (
+            <tr key={o.id} style={{ background: selected.includes(o.id) ? "#F0FDF4" : "white", transition: "background 0.1s" }}>
+              <td style={{ padding: "10px 12px" }}>
+                <input type="checkbox" checked={selected.includes(o.id)} onChange={() => toggle(o.id)} style={{ accentColor: C.green }} />
+              </td>
+              <td style={{ padding: "10px 12px", fontSize: 13, fontWeight: 700, color: C.green }}>{o.id}</td>
+              <td style={{ padding: "10px 12px", fontSize: 13 }}>{o.name}</td>
+              <td style={{ padding: "10px 12px", fontSize: 13, fontWeight: 700 }}>{o.amount}</td>
+              <td style={{ padding: "10px 12px" }}>
+                <span style={{ background: o.status === "PENDING" ? C.goldL : C.greenL, color: o.status === "PENDING" ? C.gold : C.green, fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 99 }}>{o.status}</span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────
+// MAIN APP
+// ─────────────────────────────────────────────────────────────
+export default function App() {
+  const [tab, setTab] = useState(0);
+  const [expandedSection, setExpandedSection] = useState(null);
+
+  const impactColor = { high: [C.red, "#FEF2F2"], medium: [C.orange, C.orangeL], low: [C.gray3, C.gray6] };
+
+  const ImprovementCard = ({ item }) => {
+    const [ic, ibg] = impactColor[item.impact] || impactColor.medium;
+    return (
+      <div style={{ background: "white", borderRadius: 12, border: "1px solid #F3F4F6", padding: "14px 16px", marginBottom: 10 }}>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, marginBottom: 6 }}>
+          <div style={{ fontWeight: 700, fontSize: 14, color: C.gray1 }}>{item.title}</div>
+          <span style={{ background: ibg, color: ic, fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 99, whiteSpace: "nowrap", flexShrink: 0, textTransform: "uppercase" }}>
+            {item.impact} impact
+          </span>
+        </div>
+        <div style={{ fontSize: 12, color: C.orange, fontWeight: 600, marginBottom: 6 }}>Why: {item.why}</div>
+        <div style={{ fontSize: 12, color: C.gray2, lineHeight: 1.6 }}>{item.what}</div>
+      </div>
+    );
+  };
+
+  const SectionBlock = ({ section, idx }) => {
+    const open = expandedSection === idx;
+    return (
+      <div style={{ marginBottom: 12 }}>
+        <button onClick={() => setExpandedSection(open ? null : idx)}
+          style={{ width: "100%", background: open ? section.bg : "white", border: `1px solid ${open ? section.color + "40" : "#E5E7EB"}`, borderRadius: 12, padding: "14px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", transition: "all 0.2s" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontWeight: 800, fontSize: 15, color: open ? section.color : C.gray1 }}>{section.category}</span>
+            <span style={{ background: section.bg, color: section.color, fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 99 }}>{section.items.length} improvements</span>
+          </div>
+          <span style={{ color: C.gray4, fontSize: 16, transition: "transform 0.2s", transform: open ? "rotate(90deg)" : "none" }}>›</span>
+        </button>
+        {open && (
+          <div style={{ paddingTop: 10 }}>
+            {section.items.map((item, i) => <ImprovementCard key={i} item={item} />)}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const demos = [
+    { title: "⚡ Flash Sale Countdown", desc: "Creates urgency, boosts conversions by 30%+", component: <CountdownDemo /> },
+    { title: "📦 Stock Urgency + Cart", desc: "Low stock warning + add to cart + WhatsApp", component: <StockUrgencyDemo /> },
+    { title: "🚚 Free Shipping Bar", desc: "Increases average order value significantly", component: <ShippingProgressDemo /> },
+    { title: "👥 Live Social Proof", desc: "Real-time purchase notifications build trust", component: <LiveNotifDemo /> },
+    { title: "📊 Revenue Dashboard Chart", desc: "Visual weekly revenue tracking for admin", component: <AdminChartDemo /> },
+    { title: "☑️ Bulk Order Actions", desc: "Select multiple orders and update at once", component: <BulkActionsDemo /> },
+  ];
+
+  return (
+    <div style={{ fontFamily: "'Segoe UI', system-ui, sans-serif", background: "#F8FAF8", minHeight: "100vh", color: C.gray1 }}>
+      {/* Header */}
+      <div style={{ background: "linear-gradient(135deg, #14532D 0%, #166534 50%, #15803D 100%)", padding: "28px 20px 24px", color: "white" }}>
+        <div style={{ maxWidth: 900, margin: "0 auto" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+            <div style={{ fontSize: 28 }}>🌾</div>
+            <div>
+              <h1 style={{ margin: 0, fontSize: 22, fontWeight: 900, letterSpacing: -0.5 }}>KJN Shop — UX Improvements Guide</h1>
+              <p style={{ margin: 0, fontSize: 13, opacity: 0.8 }}>Everything to make admin easier & customers more attracted</p>
+            </div>
+          </div>
+          {/* Stats */}
+          <div style={{ display: "flex", gap: 16, marginTop: 16, flexWrap: "wrap" }}>
+            {[["35+", "Improvements"], ["🔴 High", "Priority Items"], ["6", "Live Demos"], ["2", "Sections"]].map(([val, label]) => (
+              <div key={label} style={{ background: "rgba(255,255,255,0.12)", borderRadius: 10, padding: "8px 14px", backdropFilter: "blur(4px)" }}>
+                <div style={{ fontWeight: 900, fontSize: 18 }}>{val}</div>
+                <div style={{ fontSize: 11, opacity: 0.75 }}>{label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div style={{ background: "white", borderBottom: "2px solid #E5E7EB", position: "sticky", top: 0, zIndex: 20 }}>
+        <div style={{ maxWidth: 900, margin: "0 auto", display: "flex", padding: "0 20px" }}>
+          {TABS.map((t, i) => (
+            <button key={t} onClick={() => setTab(i)}
+              style={{ padding: "14px 20px", fontWeight: 700, fontSize: 14, border: "none", background: "none", cursor: "pointer", color: tab === i ? C.green : C.gray3, borderBottom: tab === i ? `3px solid ${C.green}` : "3px solid transparent", transition: "all 0.2s" }}>
+              {i === 0 ? "🛍️ " : i === 1 ? "⚙️ " : "🎮 "}{t}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ maxWidth: 900, margin: "0 auto", padding: "24px 20px" }}>
+
+        {/* ── Customer UX Tab ── */}
+        {tab === 0 && (
+          <div>
+            <div style={{ background: "linear-gradient(135deg, #DCFCE7, #F0FDF4)", borderRadius: 14, padding: "16px 20px", marginBottom: 20, border: "1px solid #BBF7D0" }}>
+              <h2 style={{ margin: "0 0 4px", fontSize: 16, fontWeight: 800, color: C.greenD }}>🛍️ Customer-Facing Improvements</h2>
+              <p style={{ margin: 0, fontSize: 13, color: "#166534" }}>All changes that make customers <strong>more attracted</strong>, increase conversions, and build loyalty. Click any section to expand.</p>
+            </div>
+            {customerImprovements.map((section, i) => (
+              <SectionBlock key={i} section={section} idx={`c${i}`} />
+            ))}
+          </div>
+        )}
+
+        {/* ── Admin UX Tab ── */}
+        {tab === 1 && (
+          <div>
+            <div style={{ background: "linear-gradient(135deg, #FFF7ED, #FFEDD5)", borderRadius: 14, padding: "16px 20px", marginBottom: 20, border: "1px solid #FED7AA" }}>
+              <h2 style={{ margin: "0 0 4px", fontSize: 16, fontWeight: 800, color: "#9A3412" }}>⚙️ Admin Panel Improvements</h2>
+              <p style={{ margin: 0, fontSize: 13, color: "#C2410C" }}>Changes that make <strong>your daily work faster</strong>, reduce mistakes, and give you better control of the store. Click any section to expand.</p>
+            </div>
+            {adminImprovements.map((section, i) => (
+              <SectionBlock key={i} section={section} idx={`a${i}`} />
+            ))}
+          </div>
+        )}
+
+        {/* ── Live Demos Tab ── */}
+        {tab === 2 && (
+          <div>
+            <div style={{ background: "linear-gradient(135deg, #EFF6FF, #DBEAFE)", borderRadius: 14, padding: "16px 20px", marginBottom: 20, border: "1px solid #BFDBFE" }}>
+              <h2 style={{ margin: "0 0 4px", fontSize: 16, fontWeight: 800, color: "#1E3A8A" }}>🎮 Live Demos — See It in Action</h2>
+              <p style={{ margin: 0, fontSize: 13, color: C.blue }}>Interactive previews of the key UX improvements. These are working components ready to be added to your website.</p>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))", gap: 20 }}>
+              {demos.map(({ title, desc, component }) => (
+                <div key={title} style={{ background: "white", borderRadius: 16, border: "1px solid #E5E7EB", overflow: "hidden" }}>
+                  <div style={{ padding: "14px 16px", borderBottom: "1px solid #F3F4F6" }}>
+                    <div style={{ fontWeight: 800, fontSize: 14 }}>{title}</div>
+                    <div style={{ fontSize: 12, color: C.gray3, marginTop: 2 }}>{desc}</div>
+                  </div>
+                  <div style={{ padding: 16 }}>{component}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Priority Summary */}
+        <div style={{ background: "white", borderRadius: 16, border: "1px solid #E5E7EB", padding: "20px", marginTop: 28 }}>
+          <h3 style={{ fontWeight: 800, fontSize: 15, marginBottom: 16, color: C.gray1 }}>🎯 What to Build First — Priority Order</h3>
+          <div style={{ display: "grid", gap: 8 }}>
+            {[
+              { n: "1", label: "Free Shipping Progress Bar", tag: "Cart", why: "Easy to build, directly increases order value", color: C.green },
+              { n: "2", label: "Flash Sale Countdown Timer", tag: "Homepage", why: "Huge conversion boost, creates urgency", color: C.green },
+              { n: "3", label: "Bulk Order Status Update", tag: "Admin Orders", why: "Saves hours every day for the owner", color: C.orange },
+              { n: "4", label: "Stock Urgency + Delivery Estimator", tag: "Product Page", why: "Reduces hesitation at point of purchase", color: C.green },
+              { n: "5", label: "Auto WhatsApp Notifications on Status Change", tag: "Admin", why: "Zero manual work, customers love updates", color: C.orange },
+              { n: "6", label: "Revenue Charts on Dashboard", tag: "Admin", why: "Owner can track business performance visually", color: "#0891B2" },
+              { n: "7", label: "Live Social Proof Notifications", tag: "Homepage", why: "Builds trust passively without any work", color: C.green },
+              { n: "8", label: "Bulk Product CSV Import", tag: "Admin Products", why: "Makes adding 500+ products possible", color: C.orange },
+              { n: "9", label: "KJN Rewards Points System", tag: "Loyalty", why: "Brings customers back for repeat purchases", color: C.purple },
+              { n: "10", label: "Abandoned Cart Recovery via WhatsApp", tag: "Marketing", why: "Recovers 15-20% of lost sales automatically", color: C.purple },
+            ].map(({ n, label, tag, why, color }) => (
+              <div key={n} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", background: "#FAFAFA", borderRadius: 10 }}>
+                <div style={{ width: 28, height: 28, borderRadius: "50%", background: color, color: "white", fontWeight: 900, fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{n}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: 13 }}>{label}</div>
+                  <div style={{ fontSize: 11, color: C.gray3 }}>{why}</div>
+                </div>
+                <span style={{ background: color + "20", color: color, fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 99, whiteSpace: "nowrap" }}>{tag}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

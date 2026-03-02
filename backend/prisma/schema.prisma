@@ -21,7 +21,7 @@ model User {
   passwordHash String?
   role         Role      @default(CUSTOMER)
   isVerified   Boolean   @default(false)
-  avatarUrl    String?
+  avatar       String?   @db.Text
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   orders       Order[]
@@ -62,7 +62,7 @@ model Category {
   parentId  String?
   parent    Category?  @relation("SubCategories", fields: [parentId], references: [id])
   children  Category[] @relation("SubCategories")
-  imageUrl  String?
+  image     String?    @db.Text
   sortOrder Int        @default(0)
   isActive  Boolean    @default(true)
   products  Product[]
@@ -73,7 +73,7 @@ model Brand {
   id          String    @id @default(uuid())
   name        String
   slug        String    @unique
-  logoUrl     String?
+  logo        String?   @db.Text
   description String?
   isActive    Boolean   @default(true)
   products    Product[]
@@ -101,6 +101,7 @@ model Product {
   specifications   Json?
   metaTitle        String?
   metaDescription  String?
+  image            String?          @db.Text
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
   images           ProductImage[]
@@ -116,7 +117,7 @@ model ProductImage {
   id        String  @id @default(uuid())
   productId String
   product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-  url       String
+  image     String  @db.Text
   altText   String?
   sortOrder Int     @default(0)
   isPrimary Boolean @default(false)
@@ -140,7 +141,7 @@ model Collection {
   name        String
   slug        String             @unique
   description String?
-  imageUrl    String?
+  image       String?            @db.Text
   isActive    Boolean            @default(true)
   sortOrder   Int                @default(0)
   products    CollectionProduct[]
@@ -233,7 +234,7 @@ model OrderItem {
   variantId    String?
   variant      ProductVariant? @relation(fields: [variantId], references: [id])
   productName  String
-  productImage String?
+  productImage String?  @db.Text
   variantInfo  String?
   quantity     Int
   unitPrice    Decimal         @db.Decimal(10, 2)
@@ -300,10 +301,10 @@ model CouponUsage {
 }
 
 model Banner {
-  id        String    @id @default(uuid())
-  title     String?
-  imageUrl  String
-  linkUrl   String?
+id        String    @id @default(uuid())
+title     String?
+image     String    @db.Text
+linkUrl   String?
   position  String
   sortOrder Int       @default(0)
   isActive  Boolean   @default(true)
@@ -317,7 +318,7 @@ model Blog {
   slug        String    @unique
   content     String
   excerpt     String?
-  coverImage  String?
+  coverImage  String?  @db.Text
   authorId    String
   isPublished Boolean   @default(false)
   publishedAt DateTime?
@@ -334,4 +335,41 @@ model Notification {
   message   String
   isRead    Boolean  @default(false)
   createdAt DateTime @default(now())
+}
+
+model OTP {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  otp       String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  @@index([key, expiresAt])
+}
+
+model OTPCooldown {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  @@index([key, expiresAt])
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  @@index([userId])
+  @@index([token, expiresAt])
+}
+
+model SignupSession {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String
+  phone     String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  @@index([email, expiresAt])
 }

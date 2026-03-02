@@ -1,11 +1,20 @@
 import { create } from 'zustand';
 import api from '../lib/api';
 
+// Ensure a guest sessionId always exists in localStorage
+function ensureSessionId() {
+  if (typeof window === 'undefined') return;
+  if (!localStorage.getItem('sessionId')) {
+    localStorage.setItem('sessionId', crypto.randomUUID());
+  }
+}
+
 const useCartStore = create((set, get) => ({
   cart: null,
   loading: false,
 
   fetchCart: async () => {
+    ensureSessionId();
     try {
       set({ loading: true });
       const res = await api.get('/cart');
@@ -16,6 +25,7 @@ const useCartStore = create((set, get) => ({
   },
 
   addToCart: async (productId, quantity = 1, variantId = null) => {
+    ensureSessionId();
     const res = await api.post('/cart/items', { productId, quantity, variantId });
     set({ cart: res.data.data });
     return res.data;

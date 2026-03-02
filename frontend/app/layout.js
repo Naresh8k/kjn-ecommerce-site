@@ -1,10 +1,7 @@
 import './globals.css';
-import Navbar from '@/components/layout/Navbar';
-import Footer from '@/components/layout/Footer';
-import MobileNav from '@/components/layout/MobileNav';
-import WhatsAppButton from '@/components/common/WhatsAppButton';
 import { Toaster } from 'react-hot-toast';
 import Providers from '@/components/Providers';
+import PublicShell from '@/components/PublicShell';
 
 export const metadata = {
   title: 'KJN Shop — Farm & Agricultural Equipment',
@@ -21,16 +18,9 @@ export default function RootLayout({ children }) {
       </head>
       <body>
         <Providers>
-          <div className="announcement-bar">
-            🎉 Get up to 1.5% off on all prepaid orders! &nbsp;|&nbsp; Free delivery above ₹500
-          </div>
-          <Navbar />
-          <main style={{ minHeight: '70vh', paddingBottom: '70px' }} className="page-enter">
+          <PublicShell>
             {children}
-          </main>
-          <Footer />
-          <MobileNav />
-          <WhatsAppButton />
+          </PublicShell>
           <Toaster
             position="top-center"
             toastOptions={{

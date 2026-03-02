@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import useAuthStore from '@/store/useAuthStore';
 import api from '@/lib/api';
+import useCartStore from '@/store/useCartStore';
 
 export default function Providers({ children }) {
   const queryClient = new QueryClient({
@@ -36,6 +37,13 @@ export default function Providers({ children }) {
                 if (refreshRes.data.accessToken) {
                   const userRes = await api.get('/auth/me');
                   setAuth(userRes.data.user, refreshRes.data.accessToken);
+                  // Merge guest session cart into user cart (if present)
+                  try {
+                    const sessionId = localStorage.getItem('sessionId');
+                    if (sessionId) await api.post('/cart/merge', { sessionId });
+                    // refresh cart state
+                    useCartStore.getState().fetchCart();
+                  } catch (e) { /* non‑fatal */ }
                   return;
                 }
               } catch (refreshErr) {

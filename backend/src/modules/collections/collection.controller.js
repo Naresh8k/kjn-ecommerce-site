@@ -6,8 +6,11 @@ const getCollection = async (req, res) => {
     const { page = 1, limit = 12 } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    const collection = await prisma.collection.findUnique({ where: { slug, isActive: true } });
-    if (!collection) return res.status(404).json({ success: false, message: 'Collection not found' });
+    // use findFirst so we can match on non-unique fields like isActive
+    const collection = await prisma.collection.findFirst({ where: { slug, isActive: true } });
+    if (!collection) {
+      return res.status(404).json({ success: false, message: 'Collection not found' });
+    }
 
     const [items, total] = await Promise.all([
       prisma.collectionProduct.findMany({
@@ -42,6 +45,7 @@ const getCollection = async (req, res) => {
       pagination: { total, page: parseInt(page), totalPages: Math.ceil(total / parseInt(limit)) },
     });
   } catch (error) {
+    console.error('getCollection error:', error);
     return res.status(500).json({ success: false, message: 'Server error' });
   }
 };

@@ -1,8 +1,10 @@
 import axios from 'axios';
 import useAuthStore from '@/store/useAuthStore';
 
+// Always use a relative /api base so every request goes through
+// the Next.js rewrite proxy -> backend, regardless of environment.
 const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL,
+  baseURL: '/api',
   withCredentials: true,
   headers: { 'Content-Type': 'application/json' },
 });
@@ -26,11 +28,9 @@ api.interceptors.response.use(
     if (error.response?.status === 401 && !original._retry) {
       original._retry = true;
       try {
-        const res = await axios.post(
-          `${process.env.NEXT_PUBLIC_API_URL}/auth/refresh`,
-          {},
-          { withCredentials: true }
-        );
+        // use the same axios instance so the baseURL / credentials
+      // configuration is consistent and we avoid mismatched domains
+      const res = await api.post('/auth/refresh', {});
         const newToken = res.data.accessToken;
         localStorage.setItem('accessToken', newToken);
         

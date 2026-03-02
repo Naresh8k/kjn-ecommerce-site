@@ -70,7 +70,7 @@ export default function WishlistPage() {
                 onMouseOut={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)'; }}>
                 <Link href={`/products/${item.slug}`}>
                   <div style={{ position: 'relative', aspectRatio: '1', background: '#f9fafb' }}>
-                    <img src={item.image || '/placeholder.jpg'} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    <img src={item.image || 'https://via.placeholder.com/100?text=No+Image'} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => e.target.src = 'https://via.placeholder.com/100?text=No+Image'} />
                     {item.discountPercent > 0 && (
                       <span className="badge badge-discount" style={{ position: 'absolute', top: 10, left: 10 }}>{item.discountPercent}% off</span>
                     )}

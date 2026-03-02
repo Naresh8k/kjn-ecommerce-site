@@ -1,21 +1,31 @@
 const prisma = require('../../config/db');
 
 // Get or create cart helper
+const IMAGE_INCLUDE = {
+  images: {
+    orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }],
+    take: 1,
+  },
+};
+
+const CART_INCLUDE = {
+  items: {
+    include: {
+      product: { include: IMAGE_INCLUDE },
+      variant: true,
+    },
+  },
+};
+
 const getOrCreateCart = async (userId, sessionId) => {
   if (userId) {
-    let cart = await prisma.cart.findUnique({
-      where: { userId },
-      include: { items: { include: { product: { include: { images: { where: { isPrimary: true }, take: 1 } } }, variant: true } } },
-    });
-    if (!cart) cart = await prisma.cart.create({ data: { userId }, include: { items: { include: { product: { include: { images: { where: { isPrimary: true }, take: 1 } } }, variant: true } } } });
+    let cart = await prisma.cart.findUnique({ where: { userId }, include: CART_INCLUDE });
+    if (!cart) cart = await prisma.cart.create({ data: { userId }, include: CART_INCLUDE });
     return cart;
   }
   if (sessionId) {
-    let cart = await prisma.cart.findUnique({
-      where: { sessionId },
-      include: { items: { include: { product: { include: { images: { where: { isPrimary: true }, take: 1 } } }, variant: true } } },
-    });
-    if (!cart) cart = await prisma.cart.create({ data: { sessionId }, include: { items: { include: { product: { include: { images: { where: { isPrimary: true }, take: 1 } } }, variant: true } } } });
+    let cart = await prisma.cart.findUnique({ where: { sessionId }, include: CART_INCLUDE });
+    if (!cart) cart = await prisma.cart.create({ data: { sessionId }, include: CART_INCLUDE });
     return cart;
   }
   throw new Error('userId or sessionId required');
@@ -23,26 +33,26 @@ const getOrCreateCart = async (userId, sessionId) => {
 
 // Format cart response with totals
 const formatCart = (cart, couponDiscount = 0) => {
-  const items = cart.items.map((item) => ({
-    id: item.id,
-    productId: item.productId,
-    name: item.product.name,
-    slug: item.product.slug,
-    image: item.product.images[0]?.url || null,
-    variant: item.variant ? `${item.variant.variantName}: ${item.variant.variantValue}` : null,
-    variantId: item.variantId,
-    quantity: item.quantity,
-    unitPrice: parseFloat(item.priceAtAdd),
-    mrp: parseFloat(item.product.mrp),
-    totalPrice: parseFloat(item.priceAtAdd) * item.quantity,
-    inStock: item.product.stockQuantity >= item.quantity,
-  }));
+const items = cart.items.map((item) => ({
+  id: item.id,
+  productId: item.productId,
+  name: item.product.name,
+  slug: item.product.slug,
+  image: item.product.images?.[0]?.image || item.product.image || null,
+  variant: item.variant ? `${item.variant.variantName}: ${item.variant.variantValue}` : null,
+  variantId: item.variantId,
+  quantity: item.quantity,
+  unitPrice: parseFloat(item.priceAtAdd),
+  mrp: parseFloat(item.product.mrp),
+  totalPrice: parseFloat(item.priceAtAdd) * item.quantity,
+  gstPercent: parseFloat(item.product.gstPercent || 18),
+  inStock: item.product.stockQuantity >= item.quantity,
+}));
 
-  const subtotal = items.reduce((a, b) => a + b.totalPrice, 0);
-  const gstAmount = items.reduce((a, b) => {
-    const gst = parseFloat(b.product?.gstPercent || 18);
-    return a + (b.totalPrice * gst) / (100 + gst);
-  }, 0);
+const subtotal = items.reduce((a, b) => a + b.totalPrice, 0);
+const gstAmount = items.reduce((a, b) => {
+  return a + (b.totalPrice * b.gstPercent) / (100 + b.gstPercent);
+}, 0);
   const shippingCharge = subtotal >= 500 ? 0 : 99;
   const totalAmount = subtotal - couponDiscount + shippingCharge;
 
@@ -61,6 +71,27 @@ const formatCart = (cart, couponDiscount = 0) => {
   };
 };
 
+const calcCouponDiscount = async (cart) => {
+  if (!cart.couponCode) return 0;
+  const coupon = await prisma.coupon.findUnique({
+    where: { code: cart.couponCode },
+  });
+  if (!coupon || !coupon.isActive) return 0;
+  const now = new Date();
+  if (coupon.validFrom && now < coupon.validFrom) return 0;
+  if (coupon.validUntil && now > coupon.validUntil) return 0;
+  const subtotal = cart.items.reduce((a, b) => a + parseFloat(b.priceAtAdd) * b.quantity, 0);
+  if (subtotal < parseFloat(coupon.minOrderAmount)) return 0;
+  let discount = 0;
+  if (coupon.type === 'PERCENT') {
+    discount = (subtotal * parseFloat(coupon.value)) / 100;
+    if (coupon.maxDiscount) discount = Math.min(discount, parseFloat(coupon.maxDiscount));
+  } else if (coupon.type === 'FLAT') {
+    discount = parseFloat(coupon.value);
+  }
+  return discount;
+};
+
 const getCart = async (req, res) => {
   try {
     const userId = req.user?.id || null;
@@ -68,9 +99,11 @@ const getCart = async (req, res) => {
     if (!userId && !sessionId) return res.status(400).json({ success: false, message: 'Session ID required for guest cart' });
 
     const cart = await getOrCreateCart(userId, sessionId);
-    return res.status(200).json({ success: true, data: formatCart(cart) });
+    const discount = await calcCouponDiscount(cart);
+    return res.status(200).json({ success: true, data: formatCart(cart, discount) });
   } catch (error) {
-    return res.status(500).json({ success: false, message: 'Server error' });
+    console.error('getCart error:', error);
+    return res.status(500).json({ success: false, message: error.message || 'Server error' });
   }
 };
 
@@ -81,6 +114,7 @@ const addToCart = async (req, res) => {
     const sessionId = req.headers['x-session-id'] || null;
 
     if (!productId) return res.status(400).json({ success: false, message: 'Product ID required' });
+    if (!userId && !sessionId) return res.status(400).json({ success: false, message: 'Session ID required for guest cart' });
 
     // Check product exists and has stock
     const product = await prisma.product.findUnique({ where: { id: productId, isActive: true } });
@@ -113,9 +147,11 @@ const addToCart = async (req, res) => {
     }
 
     const updatedCart = await getOrCreateCart(userId, sessionId);
-    return res.status(200).json({ success: true, message: 'Added to cart', data: formatCart(updatedCart) });
+    const discount = await calcCouponDiscount(updatedCart);
+    return res.status(200).json({ success: true, message: 'Added to cart', data: formatCart(updatedCart, discount) });
   } catch (error) {
-    return res.status(500).json({ success: false, message: 'Server error' });
+    console.error('addToCart error:', error);
+    return res.status(500).json({ success: false, message: error.message || 'Server error' });
   }
 };
 
@@ -135,7 +171,8 @@ const updateCartItem = async (req, res) => {
     await prisma.cartItem.update({ where: { id }, data: { quantity: parseInt(quantity) } });
 
     const updatedCart = await getOrCreateCart(userId, sessionId);
-    return res.status(200).json({ success: true, data: formatCart(updatedCart) });
+    const discount = await calcCouponDiscount(updatedCart);
+    return res.status(200).json({ success: true, data: formatCart(updatedCart, discount) });
   } catch (error) {
     return res.status(500).json({ success: false, message: 'Server error' });
   }
@@ -149,8 +186,9 @@ const removeCartItem = async (req, res) => {
 
     await prisma.cartItem.delete({ where: { id } });
 
-    const updatedCart = await getOrCreateCart(userId, sessionId);
-    return res.status(200).json({ success: true, message: 'Item removed', data: formatCart(updatedCart) });
+    const updatedCart2 = await getOrCreateCart(userId, sessionId);
+    const discount2 = await calcCouponDiscount(updatedCart2);
+    return res.status(200).json({ success: true, message: 'Item removed', data: formatCart(updatedCart2, discount2) });
   } catch (error) {
     return res.status(500).json({ success: false, message: 'Server error' });
   }
@@ -164,8 +202,8 @@ const applyCoupon = async (req, res) => {
 
     const cart = await getOrCreateCart(userId, null);
 
-    const coupon = await prisma.coupon.findUnique({ where: { code: couponCode.toUpperCase(), isActive: true } });
-    if (!coupon) return res.status(404).json({ success: false, message: 'Invalid coupon code' });
+    const coupon = await prisma.coupon.findUnique({ where: { code: couponCode.toUpperCase() } });
+    if (!coupon || !coupon.isActive) return res.status(404).json({ success: false, message: 'Invalid coupon code' });
 
     const now = new Date();
     if (coupon.validFrom && now < coupon.validFrom) return res.status(400).json({ success: false, message: 'Coupon not yet active' });
@@ -211,7 +249,7 @@ const removeCoupon = async (req, res) => {
 
     await prisma.cart.update({ where: { id: cart.id }, data: { couponCode: null } });
     const updatedCart = await getOrCreateCart(userId, null);
-    return res.status(200).json({ success: true, message: 'Coupon removed', data: formatCart(updatedCart) });
+    return res.status(200).json({ success: true, message: 'Coupon removed', data: formatCart(updatedCart, 0) });
   } catch (error) {
     return res.status(500).json({ success: false, message: 'Server error' });
   }
@@ -248,7 +286,8 @@ const mergeCart = async (req, res) => {
 
     await prisma.cart.delete({ where: { id: guestCart.id } });
     const mergedCart = await getOrCreateCart(userId, null);
-    return res.status(200).json({ success: true, message: 'Cart merged', data: formatCart(mergedCart) });
+    const discount = await calcCouponDiscount(mergedCart);
+    return res.status(200).json({ success: true, message: 'Cart merged', data: formatCart(mergedCart, discount) });
   } catch (error) {
     return res.status(500).json({ success: false, message: 'Server error' });
   }

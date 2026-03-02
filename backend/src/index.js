@@ -3,6 +3,8 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const cookieParser = require('cookie-parser');
+const path = require('path');
+const fs = require('fs');
 require('dotenv').config();
 
 const { notFound, errorHandler } = require('./middleware/error.middleware');
@@ -11,6 +13,10 @@ const { generalLimiter } = require('./middleware/rateLimiter.middleware');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Ensure public/uploads directory exists
+const uploadsDir = path.join(__dirname, '../public/uploads');
+fs.mkdirSync(uploadsDir, { recursive: true });
+
 // Security middleware
 app.use(helmet());
 app.use(cors({
@@ -18,14 +24,21 @@ app.use(cors({
   credentials: true,
 }));
 
-// Body parsers
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Body parsers - Increased limit for base64 images
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(cookieParser());
 app.use(morgan('dev'));
 
+// Serve static uploads
+app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));
+
 // Rate limiting
 app.use('/api', generalLimiter);
+
+// Upload routes (must be after app creation)
+const uploadRoutes = require('./modules/upload/upload.routes');
+app.use('/api/upload', uploadRoutes);
 
 // Health check
 app.get('/', (req, res) => {

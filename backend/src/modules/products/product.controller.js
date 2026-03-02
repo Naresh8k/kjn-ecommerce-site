@@ -1,5 +1,4 @@
 const prisma = require('../../config/db');
-const redis = require('../../config/redis');
 
 // ─────────────────────────────────────────────
 // GET ALL PRODUCTS with filters, search, pagination
@@ -69,7 +68,7 @@ const getProducts = async (req, res) => {
         take: parseInt(limit),
         orderBy,
         include: {
-          images: { where: { isPrimary: true }, take: 1 },
+          images: { orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }], take: 1 },
           category: { select: { name: true, slug: true } },
           brand: { select: { name: true, slug: true } },
           reviews: { select: { rating: true } },
@@ -86,7 +85,7 @@ const getProducts = async (req, res) => {
       mrp: parseFloat(p.mrp),
       sellingPrice: parseFloat(p.sellingPrice),
       discountPercent: Math.round(((p.mrp - p.sellingPrice) / p.mrp) * 100),
-      image: p.images[0]?.url || null,
+      image: p.images[0]?.image || p.image || null,
       category: p.category,
       brand: p.brand,
       stockQuantity: p.stockQuantity,
@@ -121,22 +120,16 @@ const getProductBySlug = async (req, res) => {
   try {
     const { slug } = req.params;
 
-    // Check cache first
-    const cached = await redis.get(`product:${slug}`);
-    if (cached) {
-      return res.status(200).json({ success: true, data: JSON.parse(cached), cached: true });
-    }
-
     const product = await prisma.product.findUnique({
       where: { slug, isActive: true },
       include: {
-        images: { orderBy: { sortOrder: 'asc' } },
+        images: { orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }] },
         variants: true,
         category: true,
         brand: true,
         reviews: {
           where: { isApproved: true },
-          include: { user: { select: { name: true, avatarUrl: true } } },
+          include: { user: { select: { name: true, avatar: true } } },
           orderBy: { createdAt: 'desc' },
           take: 10,
         },
@@ -165,6 +158,7 @@ const getProductBySlug = async (req, res) => {
       inStock: product.stockQuantity > 0,
       isFeatured: product.isFeatured,
       images: product.images,
+      image: product.image,
       variants: product.variants,
       category: product.category,
       brand: product.brand,
@@ -179,9 +173,6 @@ const getProductBySlug = async (req, res) => {
       totalReviews: product.reviews.length,
       reviews: product.reviews,
     };
-
-    // Cache for 10 minutes
-    await redis.setex(`product:${slug}`, 600, JSON.stringify(formatted));
 
     return res.status(200).json({ success: true, data: formatted });
   } catch (error) {
@@ -211,8 +202,8 @@ const searchProducts = async (req, res) => {
         ],
       },
       take: 10,
-      include: {
-        images: { where: { isPrimary: true }, take: 1 },
+        include: {
+        images: { orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }], take: 1 },
         category: { select: { name: true, slug: true } },
       },
     });
@@ -225,7 +216,7 @@ const searchProducts = async (req, res) => {
         slug: p.slug,
         sellingPrice: parseFloat(p.sellingPrice),
         mrp: parseFloat(p.mrp),
-        image: p.images[0]?.url || null,
+        image: p.images[0]?.image || p.image || null,
         category: p.category,
       })),
     });
@@ -242,15 +233,15 @@ const searchProducts = async (req, res) => {
 const createProduct = async (req, res) => {
   try {
     const {
-      name, slug, sku, description, shortDescription,
+      name, slug, sku, description, shortDescription, image,
       categoryId, brandId, mrp, sellingPrice, gstPercent,
-      stockQuantity, isFeatured, weightGrams, tags,
+      stockQuantity, isFeatured, isActive, weightGrams, tags,
       specifications, metaTitle, metaDescription,
       images, variants,
     } = req.body;
 
-    if (!name || !categoryId || !mrp || !sellingPrice) {
-      return res.status(400).json({ success: false, message: 'Name, category, MRP and selling price are required' });
+    if (!name || !mrp || !sellingPrice) {
+      return res.status(400).json({ success: false, message: 'Name, MRP and selling price are required' });
     }
 
     const product = await prisma.product.create({
@@ -260,26 +251,25 @@ const createProduct = async (req, res) => {
         sku,
         description,
         shortDescription,
-        categoryId,
-        brandId,
+        image, // Add the main image field
+        categoryId: categoryId || null,
+        brandId: brandId || null,
         mrp: parseFloat(mrp),
         sellingPrice: parseFloat(sellingPrice),
         gstPercent: parseFloat(gstPercent || 18),
         stockQuantity: parseInt(stockQuantity || 0),
         isFeatured: isFeatured || false,
+        isActive: isActive !== undefined ? isActive : true,
         weightGrams: weightGrams ? parseInt(weightGrams) : null,
         tags: tags || [],
         specifications: specifications || null,
         metaTitle,
         metaDescription,
-        images: images
-          ? { create: images.map((img, i) => ({ url: img.url, altText: img.altText, sortOrder: i, isPrimary: i === 0 })) }
-          : undefined,
-        variants: variants
-          ? { create: variants.map((v) => ({ variantName: v.variantName, variantValue: v.variantValue, additionalPrice: v.additionalPrice || 0, stockQuantity: v.stockQuantity || 0 })) }
-          : undefined,
       },
-      include: { images: true, variants: true },
+      include: { 
+        category: true, 
+        brand: true 
+      },
     });
 
     return res.status(201).json({ success: true, message: 'Product created', data: product });
@@ -288,7 +278,7 @@ const createProduct = async (req, res) => {
     if (error.code === 'P2002') {
       return res.status(400).json({ success: false, message: 'Product slug or SKU already exists' });
     }
-    return res.status(500).json({ success: false, message: 'Server error' });
+    return res.status(500).json({ success: false, message: error.message || 'Server error' });
   }
 };
 
@@ -311,9 +301,6 @@ const updateProduct = async (req, res) => {
       },
     });
 
-    // Clear cache
-    await redis.del(`product:${product.slug}`);
-
     return res.status(200).json({ success: true, message: 'Product updated', data: product });
   } catch (error) {
     console.error('updateProduct error:', error);
@@ -332,7 +319,6 @@ const deleteProduct = async (req, res) => {
     if (!product) return res.status(404).json({ success: false, message: 'Product not found' });
 
     await prisma.product.update({ where: { id }, data: { isActive: false } });
-    await redis.del(`product:${product.slug}`);
 
     return res.status(200).json({ success: true, message: 'Product deleted' });
   } catch (error) {

@@ -215,4 +215,68 @@ const getRevenueReport = async (req, res) => {
   }
 };
 
-module.exports = { getDashboardStats, getAllUsers, getLowStockProducts, updateStock, getRevenueReport };
+// Get all products for admin (includes inactive)
+const getAdminProducts = async (req, res) => {
+  try {
+    const { page = 1, limit = 100, search } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    
+    const where = {};
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { sku: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    const [products, total] = await Promise.all([
+      prisma.product.findMany({
+        where,
+        skip,
+        take: parseInt(limit),
+        orderBy: { createdAt: 'desc' },
+        include: {
+          category: { select: { name: true, slug: true } },
+          brand: { select: { name: true, slug: true } },
+        },
+      }),
+      prisma.product.count({ where }),
+    ]);
+
+    const formatted = products.map((p) => ({
+      id: p.id,
+      name: p.name,
+      slug: p.slug,
+      sku: p.sku,
+      mrp: parseFloat(p.mrp),
+      sellingPrice: parseFloat(p.sellingPrice),
+      image: p.image,
+      category: p.category,
+      brand: p.brand,
+      stockQuantity: p.stockQuantity,
+      isActive: p.isActive,
+      isFeatured: p.isFeatured,
+      categoryId: p.categoryId,
+      brandId: p.brandId,
+      gstPercent: parseFloat(p.gstPercent),
+      description: p.description,
+      shortDescription: p.shortDescription,
+    }));
+
+    return res.status(200).json({
+      success: true,
+      data: formatted,
+      pagination: {
+        total,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        totalPages: Math.ceil(total / parseInt(limit)),
+      },
+    });
+  } catch (error) {
+    console.error('getAdminProducts error:', error);
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+module.exports = { getDashboardStats, getAllUsers, getLowStockProducts, updateStock, getRevenueReport, getAdminProducts };
