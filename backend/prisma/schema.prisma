@@ -96,6 +96,8 @@ model Product {
   stockQuantity    Int              @default(0)
   isActive         Boolean          @default(true)
   isFeatured       Boolean          @default(false)
+  isFlashSale      Boolean          @default(false)
+  flashSaleEndDate DateTime?
   weightGrams      Int?
   tags             String[]
   specifications   Json?

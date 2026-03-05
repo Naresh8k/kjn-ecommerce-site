@@ -126,20 +126,36 @@ const getAllUsers = async (req, res) => {
       prisma.user.findMany({
         where, skip, take: parseInt(limit),
         orderBy: { createdAt: 'desc' },
-        select: {
-          id: true, name: true, email: true, phone: true,
-          isVerified: true, createdAt: true,
+        include: {
           _count: { select: { orders: true } },
+          orders: {
+            select: { totalAmount: true },
+          },
         },
       }),
       prisma.user.count({ where }),
     ]);
 
+    const formattedUsers = users.map((u) => ({
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      phone: u.phone,
+      isVerified: u.isVerified,
+      createdAt: u.createdAt,
+      _count: u._count,
+      totalSpent: u.orders.reduce(
+        (sum, order) => sum + parseFloat(order.totalAmount),
+        0
+      ),
+    }));
+
     return res.status(200).json({
-      success: true, data: users,
+      success: true, data: formattedUsers,
       pagination: { total, page: parseInt(page), totalPages: Math.ceil(total / parseInt(limit)) },
     });
   } catch (error) {
+    console.error(error);
     return res.status(500).json({ success: false, message: 'Server error' });
   }
 };
@@ -188,7 +204,7 @@ const getRevenueReport = async (req, res) => {
 
     const orders = await prisma.order.findMany({
       where: {
-        paymentStatus: 'PAID',
+        status: { notIn: ['CANCELLED'] },
         createdAt: { gte: fromDate, lte: toDate },
       },
       select: {
@@ -200,17 +216,93 @@ const getRevenueReport = async (req, res) => {
 
     const totalRevenue = orders.reduce((a, b) => a + parseFloat(b.totalAmount), 0);
     const totalOrders = orders.length;
-    const averageOrderValue = totalOrders > 0 ? (totalRevenue / totalOrders).toFixed(2) : 0;
+    const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+
+    // Daily revenue grouping
+    const dailyMap = {};
+    orders.forEach((order) => {
+      const date = order.createdAt.toISOString().split('T')[0];
+      if (!dailyMap[date]) dailyMap[date] = 0;
+      dailyMap[date] += parseFloat(order.totalAmount);
+    });
+
+    // Monthly revenue grouping
+    const monthlyMap = {};
+    orders.forEach((order) => {
+      const month = order.createdAt.getFullYear() + '-' + String(order.createdAt.getMonth() + 1).padStart(2, '0');
+      if (!monthlyMap[month]) monthlyMap[month] = 0;
+      monthlyMap[month] += parseFloat(order.totalAmount);
+    });
 
     return res.status(200).json({
       success: true,
       data: {
-        orders, totalRevenue: parseFloat(totalRevenue.toFixed(2)),
-        totalOrders, averageOrderValue: parseFloat(averageOrderValue),
-        from: fromDate, to: toDate,
+        orders,
+        totalRevenue: parseFloat(totalRevenue.toFixed(2)),
+        totalOrders,
+        averageOrderValue: parseFloat(averageOrderValue.toFixed(2)),
+        dailyRevenue: Object.entries(dailyMap).map(([date, revenue]) => ({ date, revenue })),
+        monthlyRevenue: Object.entries(monthlyMap).map(([month, revenue]) => ({ month, revenue })),
+        from: fromDate,
+        to: toDate,
       },
     });
   } catch (error) {
+    console.error('Revenue report error:', error);
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// Get single user detail (orders + cart) for admin
+const getUserDetail = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user = await prisma.user.findUnique({
+      where: { id },
+      select: {
+        id: true, name: true, email: true, phone: true, isVerified: true, createdAt: true,
+        orders: {
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true, orderNumber: true, totalAmount: true, status: true,
+            paymentStatus: true, paymentMethod: true, createdAt: true,
+            items: {
+              select: {
+                quantity: true, unitPrice: true, totalPrice: true,
+                productName: true, productImage: true,
+                product: {
+                  select: {
+                    name: true,
+                    slug: true,
+                    image: true,
+                    images: { where: { isPrimary: true }, take: 1, select: { image: true } }
+                  }
+                },
+              },
+            },
+          },
+        },
+        cart: {
+          select: {
+            items: {
+              select: {
+                id: true, quantity: true,
+                product: {
+                  select: {
+                    id: true, name: true, slug: true, sellingPrice: true, mrp: true,
+                    images: { where: { isPrimary: true }, take: 1, select: { image: true } },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+    return res.status(200).json({ success: true, data: user });
+  } catch (error) {
+    console.error('getUserDetail error:', error);
     return res.status(500).json({ success: false, message: 'Server error' });
   }
 };
@@ -220,7 +312,7 @@ const getAdminProducts = async (req, res) => {
   try {
     const { page = 1, limit = 100, search } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
-    
+
     const where = {};
     if (search) {
       where.OR = [
@@ -279,4 +371,4 @@ const getAdminProducts = async (req, res) => {
   }
 };
 
-module.exports = { getDashboardStats, getAllUsers, getLowStockProducts, updateStock, getRevenueReport, getAdminProducts };
+module.exports = { getDashboardStats, getAllUsers, getUserDetail, getLowStockProducts, updateStock, getRevenueReport, getAdminProducts };

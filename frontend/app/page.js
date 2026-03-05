@@ -3,7 +3,8 @@ import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import {
   ChevronRight, ChevronLeft, Truck, Shield, RefreshCw,
-  Headphones, ArrowRight, Zap, TrendingUp, Star, Package
+  Headphones, ArrowRight, Zap, TrendingUp, Star, Package,
+  Flame, Clock
 } from 'lucide-react';
 import ProductCard from '@/components/product/ProductCard';
 import api from '@/lib/api';
@@ -54,37 +55,177 @@ function ProductSkeleton() {
   );
 }
 
+// Recently Viewed Products Component
+function RecentlyViewed() {
+  const [products, setProducts] = useState([]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const viewed = JSON.parse(localStorage.getItem('recentlyViewed') || '[]');
+      setProducts(viewed.slice(0, 6));
+    }
+  }, []);
+
+  if (products.length === 0) return null;
+
+  return (
+    <section className="py-8 md:py-12 bg-white">
+      <div className="container mx-auto px-4">
+        <div className="flex items-center justify-between mb-5">
+          <SectionHead label="Continue Where You Left Off" tag="Your recently viewed products" />
+          <button
+            onClick={() => { if (typeof window !== 'undefined') { localStorage.removeItem('recentlyViewed'); setProducts([]); } }}
+            className="text-xs text-primary-900 font-semibold hover:underline"
+          >
+            Clear history
+          </button>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+          {products.map((p) => <ProductCard key={p.id} product={p} />)}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// Live Happy Customers Component
+function LiveHappyCustomers() {
+  const [customers, setCustomers] = useState([]);
+
+  useEffect(() => {
+    api.get('/orders/happy/customers?limit=8')
+      .then((res) => setCustomers(res.data.data || []))
+      .catch(() => { });
+  }, []);
+
+  if (!customers.length) return null;
+
+  return (
+    <section className="py-8 md:py-12 bg-gray-50">
+      <div className="container mx-auto px-4">
+        <SectionHead label="Happy Customers" tag="Real farmers, real purchases" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+          {customers.map((c, i) => (
+            <div
+              key={c.id}
+              className="bg-white rounded-xl p-4 border border-gray-100 flex items-center gap-3 shadow-sm hover:shadow-md transition-shadow"
+            >
+              <div className="text-2xl flex-shrink-0">😊</div>
+              <div className="min-w-0">
+                <p className="font-bold text-sm leading-tight">
+                  <span className="text-primary-900">{c.name}</span> from {c.city}, {c.state}
+                </p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Order <strong>{c.orderNumber}</strong> delivered
+                </p>
+                <p className="text-[10px] text-gray-400 mt-0.5">
+                  {new Date(c.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// Flash Sale Countdown Component
+function FlashSaleCountdown() {
+  const [time, setTime] = useState({ h: 0, m: 0, s: 0 });
+
+  useEffect(() => {
+    const updateTimer = () => {
+      const now = new Date();
+      const tomorrow = new Date(now);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      tomorrow.setHours(0, 0, 0, 0);
+      const diff = tomorrow.getTime() - now.getTime();
+      setTime({
+        h: Math.floor(diff / (1000 * 60 * 60)),
+        m: Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60)),
+        s: Math.floor((diff % (1000 * 60)) / 1000),
+      });
+    };
+    updateTimer();
+    const t = setInterval(updateTimer, 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  const pad = n => String(n).padStart(2, '0');
+
+  return (
+    <section className="relative overflow-hidden" style={{ background: 'linear-gradient(135deg, #1B5E20, #2E7D32)' }}>
+      <div className="absolute -top-12 -right-12 w-48 h-48 rounded-full bg-white/5" />
+      <div className="absolute -bottom-8 -left-8 w-36 h-36 rounded-full bg-white/5" />
+      <div className="container mx-auto px-4 py-6 md:py-8 relative z-10">
+        <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="text-center md:text-left">
+            <div className="flex items-center justify-center md:justify-start gap-2 mb-2">
+              <Flame className="w-6 h-6 text-yellow-300" />
+              <h3 className="font-heading font-extrabold text-xl md:text-2xl text-white">
+                Today&apos;s Flash Sale
+              </h3>
+            </div>
+            <p className="text-white/80 text-sm mb-3">Limited time offer on our bestselling products</p>
+            <div className="flex gap-2 justify-center md:justify-start mb-4">
+              {[['Hours', time.h], ['Min', time.m], ['Sec', time.s]].map(([label, val]) => (
+                <div key={label} className="text-center">
+                  <div className="bg-white/15 backdrop-blur-sm rounded-lg px-3 py-2 text-white font-extrabold text-xl md:text-2xl font-mono min-w-[52px]">
+                    {pad(val)}
+                  </div>
+                  <div className="text-[10px] text-white/60 mt-1 font-medium">{label}</div>
+                </div>
+              ))}
+            </div>
+            <Link
+              href="/collections/flash-sale"
+              className="inline-flex items-center gap-2 bg-yellow-300 text-yellow-900 font-extrabold text-sm px-6 py-2.5 rounded-full hover:bg-yellow-200 transition-colors"
+            >
+              Shop Flash Sale <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
+          <div className="text-6xl md:text-8xl">🔥</div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function HomePage() {
-  const [banners,    setBanners]    = useState([]);
+  const [banners, setBanners] = useState([]);
   const [categories, setCategories] = useState([]);
-  const [featured,   setFeatured]   = useState([]);
-  const [newest,     setNewest]     = useState([]);
-  const [brands,     setBrands]     = useState([]);
-  const [loading,    setLoading]    = useState(true);
-  const [slide,      setSlide]      = useState(0);
+  const [featured, setFeatured] = useState([]);
+  const [newest, setNewest] = useState([]);
+  const [brands, setBrands] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [slide, setSlide] = useState(0);
+  const [flashSaleActive, setFlashSaleActive] = useState(false);
   const timerRef = useRef(null);
 
-  // Static hero slide always first; admin banners follow
+  // First slide: flash-sale hero if active, else static hero; admin banners follow
   const allSlides = [
-    { type: 'static' },
+    { type: flashSaleActive ? 'flashSale' : 'static' },
     ...banners.map(b => ({ type: 'banner', ...b })),
   ];
 
   useEffect(() => {
     (async () => {
       try {
-        const [catR, featR, newR, bannerR, brandR] = await Promise.all([
+        const [catR, featR, newR, bannerR, brandR, flashR] = await Promise.all([
           api.get('/categories?limit=20'),
           api.get('/products?featured=true&limit=10'),
           api.get('/products?sort=newest&limit=10'),
           api.get('/banners'),
           api.get('/brands?limit=20'),
+          api.get('/collections/flash-sale?limit=1').catch(() => ({ data: { data: [] } })),
         ]);
-        setCategories(catR.data.data   || []);
-        setFeatured(featR.data.data    || []);
-        setNewest(newR.data.data       || []);
-        setBanners((bannerR.data.data  || []).filter(b => b.isActive && (b.image || b.imageUrl)));
-        setBrands(brandR.data.data     || []);
+        setCategories(catR.data.data || []);
+        setFeatured(featR.data.data || []);
+        setNewest(newR.data.data || []);
+        setBanners((bannerR.data.data || []).filter(b => b.isActive && (b.image || b.imageUrl)));
+        setBrands(brandR.data.data || []);
+        setFlashSaleActive((flashR.data.data || []).length > 0);
       } catch (e) {
         console.error(e);
       } finally {
@@ -112,7 +253,7 @@ export default function HomePage() {
     <div className="bg-gray-50 min-h-screen">
       <style>{`@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}.hide-scroll::-webkit-scrollbar{display:none}.hide-scroll{-ms-overflow-style:none;scrollbar-width:none}`}</style>
 
-      {/* HERO CAROUSEL — static slide + admin banners */}
+      {/* HERO CAROUSEL — flash sale hero or static + admin banners */}
       <section className="relative bg-primary-900 overflow-hidden">
         {loading ? (
           <Skel h={380} r={0} />
@@ -124,8 +265,36 @@ export default function HomePage() {
               style={{ transform: `translateX(-${slide * 100}%)` }}
             >
               {allSlides.map((s, i) => (
-                s.type === 'static' ? (
-               
+                s.type === 'flashSale' ? (
+                  /* ── Flash Sale hero (replaces static when flash sale is active) ── */
+                  <div key="flashSale" className="flex-shrink-0 w-full h-full relative" style={{ background: 'linear-gradient(135deg, #B71C1C 0%, #E53935 50%, #FF5722 100%)' }}>
+                    <div className="absolute -top-20 -right-20 w-80 h-80 rounded-full bg-white/5" />
+                    <div className="absolute -bottom-10 -left-10 w-60 h-60 rounded-full bg-white/5" />
+                    <div className="absolute top-1/3 right-1/4 w-40 h-40 rounded-full bg-yellow-400/10" />
+                    <div className="container mx-auto px-4 h-full flex items-center justify-center relative z-10">
+                      <div className="text-center text-white max-w-2xl">
+                        <span className="inline-flex items-center gap-2 bg-yellow-400/20 text-yellow-200 text-xs font-bold uppercase tracking-widest px-4 py-1.5 rounded-full mb-5">
+                          <Flame className="w-4 h-4" /> Flash Sale Live Now
+                        </span>
+                        <h1 className="font-heading font-extrabold text-white leading-tight mb-4" style={{ fontSize: 'clamp(26px,5vw,56px)' }}>
+                          Massive Discounts<br />Only for Today!
+                        </h1>
+                        <p className="text-white/80 mb-7 text-sm md:text-base max-w-lg mx-auto">
+                          Grab the best deals on sprayers, motors, tools and more before they&apos;re gone.
+                        </p>
+                        <div className="flex flex-wrap gap-3 justify-center">
+                          <Link href="/collections/flash-sale" className="inline-flex items-center gap-2 bg-yellow-400 text-yellow-900 font-extrabold px-7 py-3 rounded-full text-sm hover:bg-yellow-300 transition-colors shadow-lg">
+                            Shop Flash Sale <ArrowRight className="w-4 h-4" />
+                          </Link>
+                          <Link href="/products" className="inline-flex items-center gap-2 border-2 border-white text-white font-bold px-7 py-3 rounded-full text-sm hover:bg-white/10 transition-colors">
+                            Browse All Products
+                          </Link>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : s.type === 'static' ? (
+                  /* ── Default static hero (shows when no flash sale) ── */
                   <div key="static" className="flex-shrink-0 w-full h-full relative" style={{ background: 'linear-gradient(135deg,#1B5E20 0%,#2E7D32 60%,#388E3C 100%)' }}>
                     <div className="absolute -top-20 -right-20 w-80 h-80 rounded-full bg-white/5" />
                     <div className="absolute -bottom-10 -left-10 w-60 h-60 rounded-full bg-white/5" />
@@ -214,10 +383,10 @@ export default function HomePage() {
         <div className="container mx-auto px-4">
           <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-gray-100">
             {[
-              { icon: Truck,      title: 'Free Delivery',    sub: 'On orders above \u20b9500' },
-              { icon: Shield,     title: 'Genuine Products', sub: '100% authentic brands' },
-              { icon: RefreshCw,  title: 'Easy Returns',     sub: '7-day return policy' },
-              { icon: Headphones, title: '24/7 Support',     sub: 'WhatsApp & Phone' },
+              { icon: Truck, title: 'Free Delivery', sub: 'On orders above \u20b9500' },
+              { icon: Shield, title: 'Genuine Products', sub: '100% authentic brands' },
+              { icon: RefreshCw, title: 'Easy Returns', sub: '7-day return policy' },
+              { icon: Headphones, title: '24/7 Support', sub: 'WhatsApp & Phone' },
             ].map(({ icon: Icon, title, sub }) => (
               <div key={title} className="flex items-center gap-3 px-4 py-4 md:py-5">
                 <div className="w-10 h-10 rounded-xl bg-primary-50 flex items-center justify-center flex-shrink-0">
@@ -232,6 +401,7 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
 
       {/* CATEGORIES */}
       <section className="py-8 md:py-12 bg-white">
@@ -329,8 +499,8 @@ export default function HomePage() {
                       className="flex-shrink-0 w-28 h-16 bg-white rounded-xl border border-gray-100 hover:border-primary-900 hover:shadow-md transition-all flex items-center justify-center p-3">
                       {b.logo
                         ? <img src={b.logo} alt={b.name} className="max-w-full max-h-full object-contain"
-                            onError={e => { e.target.onerror = null; e.target.style.display = 'none'; }}
-                          />
+                          onError={e => { e.target.onerror = null; e.target.style.display = 'none'; }}
+                        />
                         : <span className="text-xs font-bold text-gray-600 text-center">{b.name}</span>
                       }
                     </Link>
@@ -364,10 +534,10 @@ export default function HomePage() {
           <p className="text-white/70 mb-10 text-sm md:text-base">Serving the farming community since day one</p>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-3xl mx-auto">
             {[
-              { val: '1000+', label: 'Products',        icon: Package  },
-              { val: '50+',   label: 'Brands',          icon: Star     },
-              { val: '10K+',  label: 'Happy Customers', icon: TrendingUp },
-              { val: '4.8',   label: 'Avg Rating',      icon: Star     },
+              { val: '1000+', label: 'Products', icon: Package },
+              { val: '50+', label: 'Brands', icon: Star },
+              { val: '10K+', label: 'Happy Customers', icon: TrendingUp },
+              { val: '4.8', label: 'Avg Rating', icon: Star },
             ].map(({ val, label, icon: Icon }) => (
               <div key={label} className="bg-white/10 rounded-2xl p-4 md:p-6 backdrop-blur-sm">
                 <Icon className="w-6 h-6 text-green-400 mx-auto mb-2" />
@@ -378,6 +548,12 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* HAPPY CUSTOMERS */}
+      <LiveHappyCustomers />
+
+      {/* RECENTLY VIEWED */}
+      <RecentlyViewed />
 
       {/* APP CTA */}
       <section className="py-8 bg-white">
@@ -393,9 +569,9 @@ export default function HomePage() {
             </div>
             <div className="flex gap-3 flex-wrap justify-center">
               {[
-                { val: '1000+', label: 'Products'  },
-                { val: '10K+',  label: 'Downloads' },
-                { val: '4.8',   label: 'Rating'    },
+                { val: '1000+', label: 'Products' },
+                { val: '10K+', label: 'Downloads' },
+                { val: '4.8', label: 'Rating' },
               ].map(({ val, label }) => (
                 <div key={label} className="bg-white rounded-xl border border-gray-200 px-6 py-4 text-center shadow-sm">
                   <div className="font-heading font-extrabold text-xl text-primary-900">{val}</div>

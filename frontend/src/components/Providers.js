@@ -1,14 +1,18 @@
 'use client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import useAuthStore from '@/store/useAuthStore';
 import api from '@/lib/api';
 import useCartStore from '@/store/useCartStore';
 
 export default function Providers({ children }) {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { staleTime: 60 * 1000, retry: 1 } },
-  });
+  // Memoize QueryClient to avoid remounts
+  const queryClientRef = useRef();
+  if (!queryClientRef.current) {
+    queryClientRef.current = new QueryClient({
+      defaultOptions: { queries: { staleTime: 60 * 1000, retry: 1 } },
+    });
+  }
   const { setAuth, logout, setHydrated, isHydrated } = useAuthStore();
 
   useEffect(() => {
@@ -71,5 +75,5 @@ export default function Providers({ children }) {
     return null;
   }
 
-  return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+  return <QueryClientProvider client={queryClientRef.current}>{children}</QueryClientProvider>;
 }

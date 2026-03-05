@@ -1,0 +1,91 @@
+# Migrate Missing Features from KJN_Product to Kjn_Shop
+
+After comparing both projects in detail, the following features exist in KJN_Product but are missing in Kjn_Shop. All changes are adapted for Kjn_Shop's base64 image approach where applicable.
+
+## Proposed Changes
+
+### Backend — Admin & Orders Module
+
+#### [MODIFY] [admin.controller.js](file:///f:/Kjn_Shop/backend/src/modules/admin/admin.controller.js)
+
+1. **Revenue Report Enhancement**: Update [getRevenueReport](file:///f:/Kjn_Shop/backend/src/modules/admin/admin.controller.js#182-217) to include daily and monthly revenue grouping arrays (like KJN_Product) in addition to the raw orders.
+2. **Admin Users Enhancement**: Update [getAllUsers](file:///f:/Kjn_Shop/KJN_Product/backend/src/modules/admin/admin.controller.js#125-222) to include `totalSpent` calculation per user (include orders → sum totalAmount).
+
+#### [MODIFY] [order.controller.js](file:///f:/Kjn_Shop/backend/src/modules/orders/order.controller.js)
+
+1. **Happy Customers API**: Add [getHappyCustomers](file:///f:/Kjn_Shop/KJN_Product/backend/src/modules/orders/order.controller.js#384-413) function — returns recent `DELIVERED` orders with user name, city, state.
+2. **Admin Notifications on New Orders**: In [placeOrder](file:///f:/Kjn_Shop/KJN_Product/backend/src/modules/orders/order.controller.js#12-216), after creating the order, notify all ADMIN users with a `NEW_ORDER` notification.
+3. **Enhanced Order Status Notifications**: In [updateOrderStatus](file:///f:/Kjn_Shop/backend/src/modules/orders/order.controller.js#302-328), send typed notifications (`ORDER_SHIPPED`, `ORDER_DELIVERED`, `ORDER_UPDATE`) instead of generic `order_update`.
+
+#### [MODIFY] [order.routes.js](file:///f:/Kjn_Shop/backend/src/modules/orders/order.routes.js)
+
+Add route: `GET /happy/customers` → [getHappyCustomers](file:///f:/Kjn_Shop/KJN_Product/backend/src/modules/orders/order.controller.js#384-413) (public, no auth required). Must be placed before [/:id](file:///f:/Kjn_Shop/frontend/src/components/Providers.js#8-76) route.
+
+---
+
+### Frontend — Homepage Enhancements
+
+#### [MODIFY] [page.js](file:///f:/Kjn_Shop/frontend/app/page.js) (Homepage)
+
+Add three new sections (ported from KJN_Product's homepage):
+
+1. **Flash Sale Countdown Timer** — Countdown section with gradient background, linking to `/collections/flash-sale`
+2. **Happy Customers Section** — Fetches from the new `/orders/happy/customers` API and displays delivered order cards
+3. **Recently Viewed Products** — Reads from `localStorage('recentlyViewed')` and displays product cards
+4. **Announcement Marquee Bar** — Scrolling banner at top with promotional text
+
+---
+
+### Frontend — Cart Page Enhancements
+
+#### [MODIFY] [page.js](file:///f:/Kjn_Shop/frontend/app/cart/page.js) (Cart)
+
+Port three features from KJN_Product's cart:
+
+1. **Available Coupons Display** — Fetch `/coupons/available` and show clickable coupon cards below the coupon input
+2. **Free Shipping Progress Bar** — Show progress bar toward ₹500 free shipping threshold
+3. **Cart Abandonment Warning** — Add `beforeunload` listener when cart has items
+
+---
+
+### Frontend — Admin Revenue Page
+
+#### [NEW] [page.js](file:///f:/Kjn_Shop/frontend/app/admin/revenue/page.js)
+
+New admin page showing daily and monthly revenue charts using `recharts` (LineChart). Fetches from `/admin/revenue-report`.
+
+---
+
+### Frontend — Providers Fix
+
+#### [MODIFY] [Providers.js](file:///f:/Kjn_Shop/frontend/src/components/Providers.js)
+
+Memoize `QueryClient` using `useRef` to prevent re-creation on every render (matching KJN_Product's pattern).
+
+---
+
+### Frontend — Admin Layout Update
+
+#### [MODIFY] [AdminLayout.js](file:///f:/Kjn_Shop/frontend/src/components/admin/AdminLayout.js)
+
+Add "Revenue" link to the admin sidebar navigation, pointing to `/admin/revenue`.
+
+---
+
+### Dependency
+
+#### [MODIFY] [package.json](file:///f:/Kjn_Shop/frontend/package.json)
+
+Add `recharts` dependency for the admin revenue charts.
+
+## Verification Plan
+
+### Automated Verification
+- Run `cd f:\Kjn_Shop\backend && node src/index.js` to verify backend starts without errors
+- Run `cd f:\Kjn_Shop\frontend && npm run build` to verify frontend compiles without errors
+
+### Manual Verification
+After starting both servers:
+1. Visit `http://localhost:3000` — verify homepage shows Flash Sale countdown, Announcement bar, and Recently Viewed section
+2. Visit `http://localhost:3000/cart` — verify free shipping progress bar appears, available coupons section visible
+3. Visit `http://localhost:3000/admin/revenue` — verify revenue charts page loads (requires admin login)

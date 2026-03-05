@@ -16,17 +16,18 @@ const navItems = [
   {
     label: 'Catalogue', icon: Package,
     children: [
-      { label: 'Products',    href: '/admin/products',    icon: ShoppingBag },
-      { label: 'Categories',  href: '/admin/categories',  icon: Layers },
-      { label: 'Brands',      href: '/admin/brands',      icon: Zap },
+      { label: 'Products', href: '/admin/products', icon: ShoppingBag },
+      { label: 'Categories', href: '/admin/categories', icon: Layers },
+      { label: 'Brands', href: '/admin/brands', icon: Zap },
       { label: 'Collections', href: '/admin/collections', icon: Boxes },
     ]
   },
   {
     label: 'Sales', icon: TrendingUp,
     children: [
-      { label: 'Orders',  href: '/admin/orders',  icon: ShoppingBag },
+      { label: 'Orders', href: '/admin/orders', icon: ShoppingBag },
       { label: 'Coupons', href: '/admin/coupons', icon: Tag },
+      { label: 'Revenue', href: '/admin/revenue', icon: TrendingUp },
     ]
   },
   { label: 'Customers', href: '/admin/customers', icon: Users },
@@ -34,39 +35,39 @@ const navItems = [
     label: 'Content', icon: FileText,
     children: [
       { label: 'Banners', href: '/admin/banners', icon: ImageIcon },
-      { label: 'Blogs',   href: '/admin/blogs',   icon: FileText },
+      { label: 'Blogs', href: '/admin/blogs', icon: FileText },
     ]
   },
 ];
 
 export default function AdminLayout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [mobileOpen,  setMobileOpen]  = useState(false);
-  const [expanded,    setExpanded]    = useState({ Catalogue: true, Sales: true, Content: false });
-  const [pending,     setPending]     = useState(0);
-  const [lowStock,    setLowStock]    = useState(0);
-  const [showNotifs,  setShowNotifs]  = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [expanded, setExpanded] = useState({ Catalogue: true, Sales: true, Content: false });
+  const [pending, setPending] = useState(0);
+  const [lowStock, setLowStock] = useState(0);
+  const [showNotifs, setShowNotifs] = useState(false);
 
   const pathname = usePathname();
-  const router   = useRouter();
+  const router = useRouter();
   const { user, logout } = useAuthStore();
 
   useEffect(() => {
     api.get('/admin/dashboard').then(r => {
       const d = r.data.data;
-      setPending(d?.orders?.pending   || 0);
+      setPending(d?.orders?.pending || 0);
       setLowStock(d?.products?.lowStock || 0);
-    }).catch(() => {});
+    }).catch(() => { });
   }, []);
 
   const handleLogout = async () => {
-    try { await api.post('/auth/logout'); } catch {}
+    try { await api.post('/auth/logout'); } catch { }
     logout();
     toast.success('Logged out');
     router.push('/login');
   };
 
-  const isActive  = (href) => pathname === href;
+  const isActive = (href) => pathname === href;
 
   const pageTitle = () => {
     for (const item of navItems) {
@@ -97,7 +98,7 @@ export default function AdminLayout({ children }) {
         'flex flex-col bg-white border-r border-gray-200 transition-all duration-300',
         'fixed lg:sticky top-0 left-0 h-screen z-50 lg:z-auto',
         sidebarOpen ? 'w-64' : 'w-[72px]',
-        mobileOpen  ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
+        mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
       ].join(' ')}>
 
         {/* Logo row */}
@@ -133,7 +134,7 @@ export default function AdminLayout({ children }) {
         <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
           {navItems.map(item => {
             if (item.children) {
-              const open        = expanded[item.label];
+              const open = expanded[item.label];
               const childActive = item.children.some(c => isActive(c.href));
 
               return (

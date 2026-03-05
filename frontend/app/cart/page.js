@@ -20,12 +20,12 @@ function fmt(n) { return Number(n).toLocaleString('en-IN'); }
 export default function CartPage() {
   const { cart, fetchCart, updateItem, removeItem, applyCoupon, removeCoupon, loading } = useCartStore();
   const { isAuthenticated } = useAuthStore();
-  const [coupon,           setCoupon]           = useState('');
-  const [couponLoading,    setCouponLoading]     = useState(false);
-  const [removingId,       setRemovingId]        = useState(null);
-  const [availableCoupons, setAvailableCoupons]  = useState([]);
-  const [couponsOpen,      setCouponsOpen]       = useState(false);
-  const [copiedCode,       setCopiedCode]        = useState(null);
+  const [coupon, setCoupon] = useState('');
+  const [couponLoading, setCouponLoading] = useState(false);
+  const [removingId, setRemovingId] = useState(null);
+  const [availableCoupons, setAvailableCoupons] = useState([]);
+  const [couponsOpen, setCouponsOpen] = useState(false);
+  const [copiedCode, setCopiedCode] = useState(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -33,9 +33,22 @@ export default function CartPage() {
     import('@/lib/api').then(({ default: api }) => {
       api.get('/coupons/active')
         .then(r => setAvailableCoupons(r.data.data || []))
-        .catch(() => {});
+        .catch(() => { });
     });
   }, []);
+
+  // Cart abandonment warning
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (cart?.items?.length > 0) {
+        e.preventDefault();
+        e.returnValue = '';
+        return '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [cart?.items?.length]);
 
   const handleApplyCoupon = async () => {
     if (!coupon.trim()) { toast.error('Enter a coupon code'); return; }
@@ -169,9 +182,8 @@ export default function CartPage() {
               return (
                 <div
                   key={item.id}
-                  className={`bg-white rounded-2xl border border-gray-100 transition-all duration-200 ${
-                    removingId === item.id ? 'opacity-40 scale-95' : ''
-                  }`}
+                  className={`bg-white rounded-2xl border border-gray-100 transition-all duration-200 ${removingId === item.id ? 'opacity-40 scale-95' : ''
+                    }`}
                 >
                   <div className="p-4 flex gap-4">
                     {/* Image */}
@@ -330,8 +342,8 @@ export default function CartPage() {
                               c.type === 'PERCENT'
                                 ? Number(c.value) + '% off'
                                 : c.type === 'FLAT'
-                                ? RS + Number(c.value).toLocaleString('en-IN') + ' off'
-                                : 'Free Shipping';
+                                  ? RS + Number(c.value).toLocaleString('en-IN') + ' off'
+                                  : 'Free Shipping';
                             const eligible = !c.minOrderAmount || cart.subtotal >= Number(c.minOrderAmount);
                             return (
                               <div
@@ -452,7 +464,7 @@ export default function CartPage() {
               <div className="mt-4 grid grid-cols-2 gap-2">
                 {[
                   { icon: ShieldCheck, text: 'Secure Payment' },
-                  { icon: Truck,       text: 'Fast Delivery'  },
+                  { icon: Truck, text: 'Fast Delivery' },
                 ].map(({ icon: Icon, text }) => (
                   <div key={text} className="flex items-center gap-2 bg-gray-50 rounded-xl px-3 py-2">
                     <Icon className="w-4 h-4 text-primary-900 flex-shrink-0" />

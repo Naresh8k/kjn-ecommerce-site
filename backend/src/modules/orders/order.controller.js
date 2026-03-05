@@ -155,6 +155,23 @@ const placeOrder = async (req, res) => {
       },
     });
 
+    // Notify all admins about new order
+    const admins = await prisma.user.findMany({
+      where: { role: 'ADMIN' },
+      select: { id: true },
+    });
+
+    if (admins.length > 0) {
+      await prisma.notification.createMany({
+        data: admins.map((admin) => ({
+          userId: admin.id,
+          type: 'NEW_ORDER',
+          title: 'New Order Received',
+          message: `Order #${order.orderNumber} placed by ${req.user.name}`,
+        })),
+      });
+    }
+
     return res.status(201).json({
       success: true,
       message: 'Order placed successfully!',
@@ -285,7 +302,22 @@ const getAllOrders = async (req, res) => {
       prisma.order.findMany({
         where, skip, take: parseInt(limit),
         orderBy: { createdAt: 'desc' },
-        include: { user: { select: { name: true, phone: true, email: true } }, shippingAddress: true, items: true },
+        include: {
+          user: { select: { name: true, phone: true, email: true } },
+          shippingAddress: true,
+          items: {
+            include: {
+              product: {
+                select: {
+                  name: true,
+                  slug: true,
+                  image: true,
+                  images: { where: { isPrimary: true }, take: 1, select: { image: true } }
+                }
+              }
+            }
+          }
+        },
       }),
       prisma.order.count({ where }),
     ]);
@@ -311,12 +343,31 @@ const updateOrderStatus = async (req, res) => {
       include: { user: true },
     });
 
+    // Send typed notification based on status
+    let title = '';
+    let message = '';
+    let type = '';
+
+    if (status === 'SHIPPED') {
+      type = 'ORDER_SHIPPED';
+      title = 'Order Shipped';
+      message = `Your order #${order.orderNumber} has been shipped.${awbNumber ? ` Tracking: ${awbNumber}` : ''}`;
+    } else if (status === 'DELIVERED') {
+      type = 'ORDER_DELIVERED';
+      title = 'Order Delivered';
+      message = `Your order #${order.orderNumber} has been delivered. Thank you for shopping with us!`;
+    } else {
+      type = 'ORDER_UPDATE';
+      title = `Order ${status.replace('_', ' ')}`;
+      message = `Your order #${order.orderNumber} is now ${status.toLowerCase().replace('_', ' ')}`;
+    }
+
     await prisma.notification.create({
       data: {
         userId: order.userId,
-        type: 'order_update',
-        title: `Order ${status.replace('_', ' ')}`,
-        message: `Your order ${order.orderNumber} is now ${status.toLowerCase().replace('_', ' ')}.${awbNumber ? ` Tracking: ${awbNumber}` : ''}`,
+        type,
+        title,
+        message,
       },
     });
 
@@ -326,4 +377,34 @@ const updateOrderStatus = async (req, res) => {
   }
 };
 
-module.exports = { placeOrder, getMyOrders, getOrderById, cancelOrder, getAllOrders, updateOrderStatus };
+// Public — Happy customers feed (for homepage)
+const getHappyCustomers = async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit || '8', 10);
+
+    const orders = await prisma.order.findMany({
+      where: { status: 'DELIVERED' },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      include: {
+        user: { select: { name: true } },
+        shippingAddress: { select: { city: true, state: true } },
+      },
+    });
+
+    const data = orders.map((o) => ({
+      id: o.id,
+      name: o.user.name,
+      city: o.shippingAddress.city,
+      state: o.shippingAddress.state,
+      orderNumber: o.orderNumber,
+      createdAt: o.createdAt,
+    }));
+
+    return res.status(200).json({ success: true, data });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+module.exports = { placeOrder, getMyOrders, getOrderById, cancelOrder, getAllOrders, updateOrderStatus, getHappyCustomers };
