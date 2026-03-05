@@ -44,6 +44,8 @@ const items = cart.items.map((item) => ({
   quantity: item.quantity,
   unitPrice: parseFloat(item.priceAtAdd),
   mrp: parseFloat(item.product.mrp),
+  sellingPrice: parseFloat(item.product.sellingPrice),
+  isFlashSalePrice: parseFloat(item.priceAtAdd) < parseFloat(item.product.sellingPrice),
   totalPrice: parseFloat(item.priceAtAdd) * item.quantity,
   gstPercent: parseFloat(item.product.gstPercent || 18),
   inStock: item.product.stockQuantity >= item.quantity,
@@ -123,8 +125,22 @@ const addToCart = async (req, res) => {
 
     const cart = await getOrCreateCart(userId, sessionId);
 
-    // Calculate price
-    let price = parseFloat(product.sellingPrice);
+    // Check for active flash sale — use flash price if available
+    const now = new Date();
+    const activeFlashSale = await prisma.flashSale.findFirst({
+      where: {
+        productId,
+        isActive: true,
+        startDate: { lte: now },
+        endDate: { gte: now },
+      },
+    });
+
+    // Calculate price (flash sale overrides selling price)
+    let price = activeFlashSale
+      ? parseFloat(activeFlashSale.flashPrice)
+      : parseFloat(product.sellingPrice);
+
     if (variantId) {
       const variant = await prisma.productVariant.findUnique({ where: { id: variantId } });
       if (variant) price += parseFloat(variant.additionalPrice);

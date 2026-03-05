@@ -26,6 +26,7 @@ const navItems = [
     label: 'Sales', icon: TrendingUp,
     children: [
       { label: 'Orders', href: '/admin/orders', icon: ShoppingBag },
+      { label: 'Flash Sales', href: '/admin/flash-sales', icon: Zap },
       { label: 'Coupons', href: '/admin/coupons', icon: Tag },
       { label: 'Revenue', href: '/admin/revenue', icon: TrendingUp },
     ]

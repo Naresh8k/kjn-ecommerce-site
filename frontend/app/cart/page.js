@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import {
   Minus, Plus, ShoppingBag, Tag,
   ArrowRight, Truck, X, ChevronRight, Package, ShieldCheck,
-  Gift, ChevronDown, ChevronUp, Copy, Check
+  Gift, ChevronDown, ChevronUp, Copy, Check, Zap
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import useCartStore from '@/store/useCartStore';
@@ -216,8 +216,15 @@ export default function CartPage() {
                       </div>
 
                       {item.variant && (
-                        <p className="text-xs text-gray-500 font-semibold">{item.variant}</p>
-                      )}
+                          <p className="text-xs text-gray-500 font-semibold">{item.variant}</p>
+                        )}
+
+                        {/* Flash sale badge */}
+                        {item.isFlashSalePrice && (
+                          <span className="inline-flex items-center gap-1 bg-gradient-to-r from-red-500 to-orange-500 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-full w-fit">
+                            <Zap className="w-2.5 h-2.5" /> Flash Price
+                          </span>
+                        )}
 
                       {/* Price + qty */}
                       <div className="flex items-center justify-between gap-2 mt-auto pt-2">

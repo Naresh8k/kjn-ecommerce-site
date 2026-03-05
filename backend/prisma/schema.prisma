@@ -113,6 +113,22 @@ model Product {
   reviews          Review[]
   cartItems        CartItem[]
   collectionItems  CollectionProduct[]
+  flashSales       FlashSale[]
+}
+
+model FlashSale {
+  id          String   @id @default(uuid())
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  flashPrice  Decimal  @db.Decimal(10, 2)
+  startDate   DateTime @default(now())
+  endDate     DateTime
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  @@index([productId])
+  @@index([endDate])
+  @@index([isActive, endDate])
 }
 
 model ProductImage {
@@ -203,6 +219,7 @@ model Order {
   trackingId        String?
   awbNumber         String?
   couponCode        String?
+  invoiceNumber     String?       @unique
   items             OrderItem[]
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt

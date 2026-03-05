@@ -5,7 +5,7 @@ import Link from 'next/link';
 import {
   Package, MapPin, ChevronRight, Phone, AlertCircle,
   CheckCircle, Clock, Truck, XCircle, RotateCcw,
-  ArrowLeft, MessageCircle, CreditCard, Tag
+  ArrowLeft, MessageCircle, CreditCard, Tag, Download, FileText
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '@/lib/api';
@@ -24,24 +24,24 @@ function getItemImage(item) {
 }
 
 const STATUS_META = {
-  PENDING:          { label: 'Pending',          cls: 'bg-amber-50 text-amber-700 border-amber-200',       Icon: Clock,        dot: 'bg-amber-400'    },
-  CONFIRMED:        { label: 'Confirmed',         cls: 'bg-green-50 text-green-700 border-green-200',       Icon: CheckCircle,  dot: 'bg-green-500'    },
-  PROCESSING:       { label: 'Processing',        cls: 'bg-blue-50 text-blue-700 border-blue-200',          Icon: Package,      dot: 'bg-blue-500'     },
-  SHIPPED:          { label: 'Shipped',           cls: 'bg-teal-50 text-teal-700 border-teal-200',          Icon: Truck,        dot: 'bg-teal-500'     },
-  OUT_FOR_DELIVERY: { label: 'Out for Delivery',  cls: 'bg-orange-50 text-orange-700 border-orange-200',    Icon: Truck,        dot: 'bg-orange-500'   },
-  DELIVERED:        { label: 'Delivered',         cls: 'bg-primary-50 text-primary-900 border-primary-200', Icon: CheckCircle,  dot: 'bg-primary-900'  },
-  CANCELLED:        { label: 'Cancelled',         cls: 'bg-red-50 text-red-700 border-red-200',             Icon: XCircle,      dot: 'bg-red-500'      },
-  RETURNED:         { label: 'Returned',          cls: 'bg-purple-50 text-purple-700 border-purple-200',    Icon: RotateCcw,    dot: 'bg-purple-500'   },
-  REFUNDED:         { label: 'Refunded',          cls: 'bg-purple-50 text-purple-700 border-purple-200',    Icon: RotateCcw,    dot: 'bg-purple-500'   },
+  PENDING: { label: 'Pending', cls: 'bg-amber-50 text-amber-700 border-amber-200', Icon: Clock, dot: 'bg-amber-400' },
+  CONFIRMED: { label: 'Confirmed', cls: 'bg-green-50 text-green-700 border-green-200', Icon: CheckCircle, dot: 'bg-green-500' },
+  PROCESSING: { label: 'Processing', cls: 'bg-blue-50 text-blue-700 border-blue-200', Icon: Package, dot: 'bg-blue-500' },
+  SHIPPED: { label: 'Shipped', cls: 'bg-teal-50 text-teal-700 border-teal-200', Icon: Truck, dot: 'bg-teal-500' },
+  OUT_FOR_DELIVERY: { label: 'Out for Delivery', cls: 'bg-orange-50 text-orange-700 border-orange-200', Icon: Truck, dot: 'bg-orange-500' },
+  DELIVERED: { label: 'Delivered', cls: 'bg-primary-50 text-primary-900 border-primary-200', Icon: CheckCircle, dot: 'bg-primary-900' },
+  CANCELLED: { label: 'Cancelled', cls: 'bg-red-50 text-red-700 border-red-200', Icon: XCircle, dot: 'bg-red-500' },
+  RETURNED: { label: 'Returned', cls: 'bg-purple-50 text-purple-700 border-purple-200', Icon: RotateCcw, dot: 'bg-purple-500' },
+  REFUNDED: { label: 'Refunded', cls: 'bg-purple-50 text-purple-700 border-purple-200', Icon: RotateCcw, dot: 'bg-purple-500' },
 };
 
 const STEPS = [
-  { key: 'PENDING',          label: 'Order Placed',      icon: Package      },
-  { key: 'CONFIRMED',        label: 'Confirmed',         icon: CheckCircle  },
-  { key: 'PROCESSING',       label: 'Processing',        icon: Package      },
-  { key: 'SHIPPED',          label: 'Shipped',           icon: Truck        },
-  { key: 'OUT_FOR_DELIVERY', label: 'Out for Delivery',  icon: Truck        },
-  { key: 'DELIVERED',        label: 'Delivered',         icon: CheckCircle  },
+  { key: 'PENDING', label: 'Order Placed', icon: Package },
+  { key: 'CONFIRMED', label: 'Confirmed', icon: CheckCircle },
+  { key: 'PROCESSING', label: 'Processing', icon: Package },
+  { key: 'SHIPPED', label: 'Shipped', icon: Truck },
+  { key: 'OUT_FOR_DELIVERY', label: 'Out for Delivery', icon: Truck },
+  { key: 'DELIVERED', label: 'Delivered', icon: CheckCircle },
 ];
 
 const STEP_INDEX = STEPS.reduce((acc, s, i) => ({ ...acc, [s.key]: i }), {});
@@ -62,7 +62,7 @@ function Stepper({ status }) {
           />
         )}
         {STEPS.map((step, i) => {
-          const done   = !cancelled && i < current;
+          const done = !cancelled && i < current;
           const active = !cancelled && i === current;
           const StepIcon = step.icon;
           return (
@@ -70,9 +70,9 @@ function Stepper({ status }) {
               <div className={
                 'w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all duration-300 ' + (
                   cancelled ? 'bg-gray-100 border-gray-200' :
-                  done      ? 'bg-primary-900 border-primary-900' :
-                  active    ? 'bg-primary-900 border-primary-900 ring-4 ring-primary-900/20' :
-                              'bg-white border-gray-200'
+                    done ? 'bg-primary-900 border-primary-900' :
+                      active ? 'bg-primary-900 border-primary-900 ring-4 ring-primary-900/20' :
+                        'bg-white border-gray-200'
                 )
               }>
                 {done ? (
@@ -140,8 +140,8 @@ export default function OrderDetailPage() {
   const { id } = useParams();
   const router = useRouter();
   const { isAuthenticated } = useAuthStore();
-  const [order,      setOrder]      = useState(null);
-  const [loading,    setLoading]    = useState(true);
+  const [order, setOrder] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState(false);
 
   useEffect(() => {
@@ -164,16 +164,29 @@ export default function OrderDetailPage() {
     } finally { setCancelling(false); }
   };
 
-  if (loading) return <SkeletonDetail />;
-  if (!order)  return null;
+  const handleDownloadInvoice = async () => {
+    try {
+      const r = await api.get(`/orders/${id}/invoice`, { responseType: 'blob' });
+      const url = URL.createObjectURL(new Blob([r.data]));
+      const a = document.createElement('a');
+      a.href = url; a.download = `Invoice-${order.orderNumber}.pdf`; a.click();
+      URL.revokeObjectURL(url);
+      toast.success('Invoice downloaded!');
+    } catch {
+      toast.error('Failed to download invoice');
+    }
+  };
 
-  const meta        = STATUS_META[order.status] || STATUS_META.PENDING;
-  const canCancel   = ['PENDING', 'CONFIRMED'].includes(order.status);
-  const subtotal    = parseFloat(order.subtotal    || 0);
-  const discount    = parseFloat(order.discountAmount || 0);
-  const shipping    = parseFloat(order.shippingCharge || 0);
-  const gst         = parseFloat(order.gstAmount   || 0);
-  const total       = parseFloat(order.totalAmount  || 0);
+  if (loading) return <SkeletonDetail />;
+  if (!order) return null;
+
+  const meta = STATUS_META[order.status] || STATUS_META.PENDING;
+  const canCancel = ['PENDING', 'CONFIRMED'].includes(order.status);
+  const subtotal = parseFloat(order.subtotal || 0);
+  const discount = parseFloat(order.discountAmount || 0);
+  const shipping = parseFloat(order.shippingCharge || 0);
+  const gst = parseFloat(order.gstAmount || 0);
+  const total = parseFloat(order.totalAmount || 0);
 
   return (
     <div className="min-h-screen bg-gray-50 pb-28">
@@ -357,6 +370,15 @@ export default function OrderDetailPage() {
       {/* Sticky bottom action bar */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-3 z-30">
         <div className="container mx-auto flex items-center gap-3 flex-wrap">
+          {!['PENDING', 'CANCELLED'].includes(order.status) && (
+            <button
+              onClick={handleDownloadInvoice}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 border-primary-200 bg-primary-50 text-primary-700 hover:bg-primary-100 text-xs font-extrabold transition-colors"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              Download Invoice
+            </button>
+          )}
           {canCancel && (
             <button
               onClick={handleCancel}

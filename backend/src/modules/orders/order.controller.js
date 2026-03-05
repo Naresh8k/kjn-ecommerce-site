@@ -1,4 +1,5 @@
 const prisma = require('../../config/db');
+const { generateInvoicePDF, generateInvoiceNumber } = require('./invoice.service');
 
 // Generate order number
 const generateOrderNumber = () => {
@@ -407,4 +408,64 @@ const getHappyCustomers = async (req, res) => {
   }
 };
 
-module.exports = { placeOrder, getMyOrders, getOrderById, cancelOrder, getAllOrders, updateOrderStatus, getHappyCustomers };
+// ─── INVOICE GENERATION ───────────────────────
+const getOrderInvoice = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+    const isAdmin = req.user.role === 'ADMIN' || req.user.role === 'STAFF';
+
+    // Find order
+    const whereClause = isAdmin ? { id } : { id, userId };
+    let order = await prisma.order.findFirst({
+      where: whereClause,
+      include: {
+        items: {
+          include: {
+            product: { select: { sku: true } },
+          },
+        },
+        shippingAddress: true,
+        user: { select: { name: true, email: true, phone: true } },
+      },
+    });
+
+    if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
+
+    // Only generate invoice for confirmed+ orders
+    if (['PENDING', 'CANCELLED'].includes(order.status) && !isAdmin) {
+      return res.status(400).json({ success: false, message: 'Invoice not available for this order status' });
+    }
+
+    // Generate invoice number if not assigned yet
+    if (!order.invoiceNumber) {
+      const invoiceNumber = generateInvoiceNumber(order.createdAt);
+      order = await prisma.order.update({
+        where: { id },
+        data: { invoiceNumber },
+        include: {
+          items: {
+            include: {
+              product: { select: { sku: true } },
+            },
+          },
+          shippingAddress: true,
+          user: { select: { name: true, email: true, phone: true } },
+        },
+      });
+    }
+
+    // Generate PDF
+    const pdfBuffer = await generateInvoicePDF(order);
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=Invoice-${order.invoiceNumber}.pdf`);
+    res.setHeader('Content-Length', pdfBuffer.length);
+    return res.send(pdfBuffer);
+  } catch (error) {
+    console.error('getOrderInvoice error:', error);
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+module.exports = { placeOrder, getMyOrders, getOrderById, cancelOrder, getAllOrders, updateOrderStatus, getHappyCustomers, getOrderInvoice };

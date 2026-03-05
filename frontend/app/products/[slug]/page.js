@@ -2,16 +2,57 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ShoppingBag, Heart, Star, Truck, Shield, RefreshCw, ChevronRight, Minus, Plus, Share2, CheckCircle } from 'lucide-react';
+import {
+  ShoppingBag, Heart, Star, Truck, Shield, RefreshCw,
+  ChevronRight, Minus, Plus, Share2, CheckCircle, Zap,
+  MapPin, Package, Tag, Timer, Headphones, X
+} from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '@/lib/api';
 import useCartStore from '@/store/useCartStore';
 import useAuthStore from '@/store/useAuthStore';
 
+const RS = String.fromCharCode(8377);
+function fmt(n) { return Number(n).toLocaleString('en-IN'); }
+
+
+function FlashCountdown({ endDate }) {
+  const [t, setT] = useState({ h: 0, m: 0, s: 0, expired: false });
+  useEffect(() => {
+    const calc = () => {
+      const diff = new Date(endDate) - new Date();
+      if (diff <= 0) return { h: 0, m: 0, s: 0, expired: true };
+      return {
+        h: Math.floor(diff / 3600000),
+        m: Math.floor((diff % 3600000) / 60000),
+        s: Math.floor((diff % 60000) / 1000),
+        expired: false,
+      };
+    };
+    setT(calc());
+    const id = setInterval(() => setT(calc()), 1000);
+    return () => clearInterval(id);
+  }, [endDate]);
+
+  if (t.expired) return null;
+  const pad = n => String(n).padStart(2, '0');
+  return (
+    <div className="flex items-center gap-2">
+      {[['h', t.h], ['m', t.m], ['s', t.s]].map(([lbl, val]) => (
+        <div key={lbl} className="bg-white/20 rounded-lg px-2.5 py-1 text-center min-w-[38px]">
+          <div className="text-sm font-extrabold text-white font-mono leading-none">{pad(val)}</div>
+          <div className="text-[9px] text-white/70 uppercase mt-0.5">{lbl}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function ProductPage() {
   const { slug } = useParams();
   const router = useRouter();
   const [product, setProduct] = useState(null);
+  const [flashSale, setFlashSale] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeImg, setActiveImg] = useState(0);
   const [selectedVariant, setSelectedVariant] = useState(null);
@@ -21,6 +62,7 @@ export default function ProductPage() {
   const [pincode, setPincode] = useState('');
   const [pincodeInfo, setPincodeInfo] = useState(null);
   const [activeTab, setActiveTab] = useState('description');
+  const [imgZoom, setImgZoom] = useState(false);
   const { addToCart } = useCartStore();
   const { isAuthenticated } = useAuthStore();
 
@@ -28,12 +70,23 @@ export default function ProductPage() {
     const fetchProduct = async () => {
       try {
         const res = await api.get(`/products/${slug}`);
-        setProduct(res.data.data);
+        const p = res.data.data;
+        setProduct(p);
+        // Check for active flash sale on this product
+        const fsRes = await api.get('/flash-sales/active').catch(() => ({ data: { data: [] } }));
+        const fs = (fsRes.data.data || []).find(s => s.product?.id === p.id || s.productId === p.id);
+        if (fs) setFlashSale(fs);
       } catch { router.push('/'); }
       finally { setLoading(false); }
     };
     fetchProduct();
   }, [slug]);
+
+  const effectivePrice = flashSale
+    ? parseFloat(flashSale.flashPrice)
+    : product
+      ? parseFloat(product.sellingPrice) + (selectedVariant ? parseFloat(selectedVariant.additionalPrice) : 0)
+      : 0;
 
   const handleAddToCart = async () => {
     setAdding(true);
@@ -79,250 +132,405 @@ export default function ProductPage() {
     }
   };
 
-  const currentPrice = product ? parseFloat(product.sellingPrice) + (selectedVariant ? parseFloat(selectedVariant.additionalPrice) : 0) : 0;
+  // ── Savings calc ──
+  const mrp = product ? parseFloat(product.mrp) : 0;
+  const savings = mrp > effectivePrice ? mrp - effectivePrice : 0;
+  const savingsPct = mrp > 0 ? Math.round((savings / mrp) * 100) : 0;
 
   if (loading) return (
-    <div style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ textAlign: 'center' }}>
-        <div style={{ width: 48, height: 48, border: '4px solid #E8F5E9', borderTop: '4px solid #1B5E20', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 16px' }} />
-        <p style={{ color: '#6B7280', fontWeight: 600 }}>Loading product...</p>
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="flex flex-col items-center gap-3">
+        <div className="w-12 h-12 rounded-full border-4 border-gray-200 border-t-green-700 animate-spin" />
+        <p className="text-sm font-semibold text-gray-500">Loading product…</p>
       </div>
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 
   if (!product) return null;
 
+  const images = product.images?.length ? product.images : product.image ? [{ image: product.image }] : [];
+
   return (
-    <div style={{ background: '#f9fafb', minHeight: '100vh' }}>
-      {/* Breadcrumb */}
-      <div style={{ background: 'white', borderBottom: '1px solid #e5e7eb', padding: '10px 0' }}>
-        <div className="container" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#6B7280', flexWrap: 'wrap' }}>
-          <Link href="/" style={{ color: '#1B5E20', fontWeight: 600 }}>Home</Link>
-          <ChevronRight style={{ width: 12 }} />
-          <Link href={`/categories/${product.category?.slug}`} style={{ color: '#1B5E20', fontWeight: 600 }}>{product.category?.name}</Link>
-          <ChevronRight style={{ width: 12 }} />
-          <span style={{ color: '#374151', fontWeight: 600 }}>{product.name}</span>
+    <div className="bg-gray-50 min-h-screen pb-28 md:pb-0">
+
+      {/* ── Flash Sale Banner ── */}
+      {flashSale && (
+        <div className="bg-gradient-to-r from-red-600 via-orange-500 to-amber-500 text-white">
+          <div className="container mx-auto px-4 py-2.5 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-sm font-bold">
+              <Zap className="w-4 h-4 text-yellow-200 flex-shrink-0" />
+              <span>⚡ FLASH SALE — Save {RS}{fmt(savings)} ({savingsPct}% off)</span>
+            </div>
+            <div className="flex items-center gap-2 text-xs font-semibold text-white/80">
+              <Timer className="w-3.5 h-3.5" /> Ends in:
+              <FlashCountdown endDate={flashSale.endDate} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Breadcrumb ── */}
+      <div className="bg-white border-b border-gray-100">
+        <div className="container mx-auto px-4 py-3 flex items-center gap-1.5 text-xs text-gray-500 flex-wrap">
+          <Link href="/" className="hover:text-green-800 font-semibold transition-colors">Home</Link>
+          <ChevronRight className="w-3 h-3" />
+          <Link href={`/categories/${product.category?.slug}`} className="hover:text-green-800 font-semibold transition-colors">{product.category?.name}</Link>
+          <ChevronRight className="w-3 h-3" />
+          <span className="font-bold text-gray-700 truncate max-w-[200px]">{product.name}</span>
         </div>
       </div>
 
-      <div className="container" style={{ padding: '24px 16px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 24 }}>
+      <div className="container mx-auto px-4 py-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 xl:gap-14">
 
-          {/* Images */}
-          <div style={{ display: 'grid', gridTemplateColumns: '72px 1fr', gap: 12 }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {product.images?.map((img, i) => (
-                <button key={i} onClick={() => setActiveImg(i)} style={{ border: `2px solid ${activeImg === i ? '#1B5E20' : '#e5e7eb'}`, borderRadius: 10, overflow: 'hidden', background: 'white', cursor: 'pointer', padding: 0 }}>
-              <img src={img.image} alt="" style={{ width: '100%', aspectRatio: '1', objectFit: 'cover' }} />
-                </button>
-              ))}
-            </div>
-            <div style={{ position: 'relative', background: 'white', borderRadius: 16, overflow: 'hidden', aspectRatio: '1', boxShadow: '0 4px 16px rgba(0,0,0,0.08)' }}>
-              <img src={product.images?.[activeImg]?.image || product.image || ''} alt={product.name} onError={e => { e.currentTarget.src = ''; e.currentTarget.style.display='none'; }}
-                style={{ width: '100%', height: '100%', objectFit: 'contain', padding: 16 }} />
-              {product.discountPercent > 0 && (
-                <div style={{ position: 'absolute', top: 16, left: 16 }}>
-                  <span className="badge badge-discount" style={{ fontSize: 13, padding: '4px 12px' }}>{product.discountPercent}% OFF</span>
-                </div>
-              )}
-              <button onClick={handleShare} style={{ position: 'absolute', top: 16, right: 16, width: 36, height: 36, background: 'white', border: '1px solid #e5e7eb', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                <Share2 style={{ width: 16, color: '#6B7280' }} />
-              </button>
-            </div>
-          </div>
-
-          {/* Product Info */}
-          <div>
-            {/* Brand & Category */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-              {product.brand && <span style={{ background: '#E8F5E9', color: '#1B5E20', padding: '3px 10px', borderRadius: 99, fontSize: 11, fontWeight: 700 }}>{product.brand.name}</span>}
-              <span style={{ background: '#FFF8E1', color: '#FF6F00', padding: '3px 10px', borderRadius: 99, fontSize: 11, fontWeight: 700 }}>{product.category?.name}</span>
-            </div>
-
-            <h1 style={{ fontFamily: 'Sora', fontWeight: 800, fontSize: 'clamp(18px, 3vw, 26px)', lineHeight: 1.3, marginBottom: 12, color: '#1F2937' }}>{product.name}</h1>
-
-            {/* Rating */}
-            {product.averageRating && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: '#1B5E20', color: 'white', padding: '4px 10px', borderRadius: 99, fontSize: 13, fontWeight: 700 }}>
-                  <Star style={{ width: 14, fill: 'white' }} />
-                  {product.averageRating}
-                </div>
-                <span style={{ fontSize: 13, color: '#6B7280' }}>{product.totalReviews} reviews</span>
-                {product.inStock
-                  ? <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#16A34A', fontSize: 13, fontWeight: 700 }}><CheckCircle style={{ width: 14 }} /> In Stock</span>
-                  : <span style={{ color: '#DC2626', fontSize: 13, fontWeight: 700 }}>Out of Stock</span>}
+          {/* ════ IMAGE GALLERY ════ */}
+          <div className="flex gap-3">
+            {/* Thumbnails */}
+            {images.length > 1 && (
+              <div className="flex flex-col gap-2 flex-shrink-0">
+                {images.map((img, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setActiveImg(i)}
+                    className={`w-16 h-16 rounded-xl overflow-hidden border-2 transition-all flex-shrink-0 ${
+                      activeImg === i ? 'border-green-700 shadow-md scale-105' : 'border-gray-200 hover:border-green-400'
+                    }`}
+                  >
+                    <img src={img.image} alt="" className="w-full h-full object-cover" />
+                  </button>
+                ))}
               </div>
             )}
 
-            {/* Price */}
-            <div style={{ background: 'linear-gradient(135deg, #E8F5E9, #F1F8E9)', borderRadius: 16, padding: '16px 20px', marginBottom: 20 }}>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
-                <span style={{ fontFamily: 'Sora', fontWeight: 800, fontSize: 32, color: '#1B5E20' }}>₹{currentPrice.toLocaleString('en-IN')}</span>
-                {product.mrp > currentPrice && (
-                  <>
-                    <span style={{ fontSize: 18, color: '#9CA3AF', textDecoration: 'line-through' }}>₹{parseFloat(product.mrp).toLocaleString('en-IN')}</span>
-                    <span style={{ background: '#FF3B30', color: 'white', padding: '2px 10px', borderRadius: 99, fontSize: 13, fontWeight: 800 }}>{product.discountPercent}% OFF</span>
-                  </>
+            {/* Main image */}
+            <div className="flex-1 relative">
+              <div
+                onClick={() => setImgZoom(true)}
+                className="relative bg-white rounded-2xl overflow-hidden aspect-square shadow-sm border border-gray-100 cursor-zoom-in group"
+              >
+                <img
+                  src={images[activeImg]?.image || ''}
+                  alt={product.name}
+                  onError={e => { e.currentTarget.style.display = 'none'; }}
+                  className="w-full h-full object-contain p-6 group-hover:scale-105 transition-transform duration-500"
+                />
+
+                {/* Badges */}
+                <div className="absolute top-3 left-3 flex flex-col gap-1.5 pointer-events-none">
+                  {flashSale ? (
+                    <span className="flex items-center gap-1 bg-gradient-to-r from-red-500 to-orange-500 text-white text-xs font-extrabold px-2.5 py-1 rounded-lg shadow">
+                      <Zap className="w-3 h-3" /> FLASH DEAL
+                    </span>
+                  ) : savingsPct > 0 ? (
+                    <span className="bg-red-500 text-white text-xs font-extrabold px-2.5 py-1 rounded-lg shadow">
+                      {savingsPct}% OFF
+                    </span>
+                  ) : null}
+                  {!product.inStock && (
+                    <span className="bg-gray-700 text-white text-xs font-bold px-2.5 py-1 rounded-lg shadow">Out of Stock</span>
+                  )}
+                </div>
+
+                {/* Action buttons top-right */}
+                <div className="absolute top-3 right-3 flex flex-col gap-2">
+                  <button
+                    onClick={e => { e.stopPropagation(); handleShare(); }}
+                    className="w-9 h-9 rounded-xl bg-white shadow border border-gray-100 flex items-center justify-center hover:bg-gray-50 transition-colors"
+                  >
+                    <Share2 className="w-4 h-4 text-gray-500" />
+                  </button>
+                  <button
+                    onClick={e => { e.stopPropagation(); handleWishlist(); }}
+                    className="w-9 h-9 rounded-xl bg-white shadow border border-gray-100 flex items-center justify-center hover:bg-gray-50 transition-colors"
+                  >
+                    <Heart className="w-4 h-4 transition-colors" style={{ fill: wishlisted ? '#ef4444' : 'none', color: wishlisted ? '#ef4444' : '#9CA3AF' }} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Dot nav */}
+              {images.length > 1 && (
+                <div className="flex justify-center gap-1.5 mt-3">
+                  {images.map((_, i) => (
+                    <button key={i} onClick={() => setActiveImg(i)}
+                      className={`rounded-full transition-all ${activeImg === i ? 'w-5 h-2 bg-green-700' : 'w-2 h-2 bg-gray-300'}`}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ════ PRODUCT INFO ════ */}
+          <div className="flex flex-col gap-5">
+
+            {/* Badges row */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {product.brand && (
+                <span className="bg-green-50 text-green-800 border border-green-200 text-xs font-bold px-3 py-1 rounded-full">
+                  {product.brand.name}
+                </span>
+              )}
+              <span className="bg-amber-50 text-amber-700 border border-amber-200 text-xs font-bold px-3 py-1 rounded-full">
+                {product.category?.name}
+              </span>
+              {product.inStock
+                ? <span className="flex items-center gap-1 text-green-700 text-xs font-bold"><CheckCircle className="w-3.5 h-3.5" /> In Stock</span>
+                : <span className="text-red-600 text-xs font-bold">Out of Stock</span>}
+            </div>
+
+            {/* Name */}
+            <h1 className="font-heading font-extrabold text-2xl md:text-3xl text-gray-900 leading-tight">
+              {product.name}
+            </h1>
+
+            {/* Rating */}
+            {product.averageRating && (
+              <div className="flex items-center gap-3 flex-wrap">
+                <div className="flex items-center gap-1.5 bg-green-800 text-white text-xs font-bold px-3 py-1.5 rounded-full">
+                  <Star className="w-3.5 h-3.5 fill-white" />
+                  {product.averageRating}
+                </div>
+                <span className="text-sm text-gray-500">{product.totalReviews} reviews</span>
+                <div className="flex gap-0.5">
+                  {[1,2,3,4,5].map(s => (
+                    <Star key={s} className="w-3.5 h-3.5"
+                      style={{ fill: s <= Math.round(product.averageRating) ? '#F59E0B' : 'none', color: s <= Math.round(product.averageRating) ? '#F59E0B' : '#D1D5DB' }} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Price Card */}
+            <div className={`rounded-2xl p-5 border ${flashSale ? 'bg-gradient-to-br from-red-50 to-orange-50 border-orange-200' : 'bg-gradient-to-br from-green-50 to-emerald-50 border-green-200'}`}>
+              {flashSale && (
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="flex items-center gap-1.5 bg-gradient-to-r from-red-500 to-orange-500 text-white text-xs font-extrabold px-3 py-1.5 rounded-full">
+                    <Zap className="w-3.5 h-3.5" /> Flash Sale Price
+                  </span>
+                  <FlashCountdown endDate={flashSale.endDate} />
+                </div>
+              )}
+              <div className="flex items-baseline gap-3 flex-wrap mb-2">
+                <span className={`font-heading font-extrabold text-4xl ${flashSale ? 'text-red-600' : 'text-green-800'}`}>
+                  {RS}{fmt(effectivePrice)}
+                </span>
+                {mrp > effectivePrice && (
+                  <span className="text-xl text-gray-400 line-through font-medium">{RS}{fmt(mrp)}</span>
+                )}
+                {savingsPct > 0 && (
+                  <span className="bg-red-500 text-white text-sm font-extrabold px-2.5 py-1 rounded-full">
+                    {savingsPct}% OFF
+                  </span>
                 )}
               </div>
-              <p style={{ fontSize: 12, color: '#6B7280', marginTop: 6 }}>Inclusive of all taxes. GST: {product.gstPercent}%</p>
+              {savings > 0 && (
+                <p className="text-sm font-bold text-green-700 flex items-center gap-1.5">
+                  <Tag className="w-3.5 h-3.5" />
+                  You save {RS}{fmt(savings)} on this product!
+                </p>
+              )}
+              {flashSale && product.sellingPrice && parseFloat(product.sellingPrice) > effectivePrice && (
+                <p className="text-xs text-gray-500 mt-1.5">
+                  Regular price: <span className="line-through">{RS}{fmt(product.sellingPrice)}</span>
+                </p>
+              )}
+              <p className="text-xs text-gray-500 mt-2">Inclusive of all taxes. GST: {product.gstPercent}%</p>
             </div>
 
             {/* Variants */}
             {product.variants?.length > 0 && (
-              <div style={{ marginBottom: 20 }}>
-                <p style={{ fontWeight: 700, fontSize: 14, marginBottom: 10, color: '#374151' }}>
-                  Select {product.variants[0]?.variantName}:
-                  {selectedVariant && <span style={{ color: '#1B5E20', marginLeft: 8 }}>{selectedVariant.variantValue}</span>}
+              <div>
+                <p className="font-bold text-sm text-gray-700 mb-3">
+                  {product.variants[0]?.variantName}:
+                  {selectedVariant && <span className="text-green-700 ml-2">{selectedVariant.variantValue}</span>}
                 </p>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                  {product.variants.map((v) => (
-                    <button key={v.id} onClick={() => setSelectedVariant(selectedVariant?.id === v.id ? null : v)}
-                      style={{
-                        padding: '8px 16px', borderRadius: 10, border: `2px solid ${selectedVariant?.id === v.id ? '#1B5E20' : '#e5e7eb'}`,
-                        background: selectedVariant?.id === v.id ? '#E8F5E9' : 'white',
-                        color: selectedVariant?.id === v.id ? '#1B5E20' : '#374151',
-                        fontWeight: 700, fontSize: 13, cursor: 'pointer', transition: 'all 0.2s',
-                      }}>
+                <div className="flex flex-wrap gap-2">
+                  {product.variants.map(v => (
+                    <button
+                      key={v.id}
+                      onClick={() => setSelectedVariant(selectedVariant?.id === v.id ? null : v)}
+                      className={`px-4 py-2 rounded-xl border-2 font-bold text-sm transition-all ${
+                        selectedVariant?.id === v.id
+                          ? 'border-green-700 bg-green-50 text-green-800'
+                          : 'border-gray-200 text-gray-700 hover:border-green-400 hover:bg-green-50'
+                      }`}
+                    >
                       {v.variantValue}
-                      {v.additionalPrice > 0 && <span style={{ fontSize: 11, marginLeft: 4 }}>+₹{v.additionalPrice}</span>}
+                      {v.additionalPrice > 0 && <span className="text-xs ml-1 opacity-70">+{RS}{fmt(v.additionalPrice)}</span>}
                     </button>
                   ))}
                 </div>
               </div>
             )}
 
-            {/* Quantity */}
-            <div style={{ marginBottom: 20 }}>
-              <p style={{ fontWeight: 700, fontSize: 14, marginBottom: 10, color: '#374151' }}>Quantity:</p>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 0, border: '2px solid #e5e7eb', borderRadius: 12, width: 'fit-content', overflow: 'hidden' }}>
-                <button onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                  style={{ width: 44, height: 44, border: 'none', background: '#f9fafb', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                  <Minus style={{ width: 16, color: '#374151' }} />
+            {/* Quantity + CTA */}
+            <div className="flex items-center gap-4 flex-wrap">
+              {/* Stepper */}
+              <div className="flex items-center border-2 border-gray-200 rounded-xl overflow-hidden">
+                <button
+                  onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                  className="w-11 h-11 flex items-center justify-center bg-gray-50 hover:bg-gray-100 transition-colors"
+                >
+                  <Minus className="w-4 h-4 text-gray-700" />
                 </button>
-                <span style={{ width: 52, textAlign: 'center', fontWeight: 800, fontSize: 16, fontFamily: 'Sora' }}>{quantity}</span>
-                <button onClick={() => setQuantity(Math.min(10, quantity + 1))}
-                  style={{ width: 44, height: 44, border: 'none', background: '#f9fafb', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                  <Plus style={{ width: 16, color: '#374151' }} />
+                <span className="w-12 text-center font-extrabold text-base text-gray-900 select-none">{quantity}</span>
+                <button
+                  onClick={() => setQuantity(Math.min(10, quantity + 1))}
+                  className="w-11 h-11 flex items-center justify-center bg-gray-50 hover:bg-gray-100 transition-colors"
+                >
+                  <Plus className="w-4 h-4 text-gray-700" />
                 </button>
               </div>
+              <span className="text-xs text-gray-500 font-semibold">Max 10 per order</span>
             </div>
 
-            {/* CTA Buttons */}
-            <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
-              <button onClick={handleAddToCart} disabled={adding || !product.inStock}
-                className="btn btn-outline" style={{ flex: 1, minWidth: 140 }}>
-                <ShoppingBag style={{ width: 18 }} />
-                {adding ? 'Adding...' : 'Add to Cart'}
+            {/* Desktop CTA buttons */}
+            <div className="hidden md:flex gap-3 flex-wrap">
+              <button
+                onClick={handleAddToCart}
+                disabled={adding || !product.inStock}
+                className="flex-1 min-w-[150px] flex items-center justify-center gap-2 py-3.5 rounded-2xl border-2 border-green-800 text-green-800 font-extrabold text-sm hover:bg-green-800 hover:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <ShoppingBag className="w-5 h-5" />
+                {adding ? 'Adding…' : 'Add to Cart'}
               </button>
-              <button onClick={handleBuyNow} disabled={adding || !product.inStock}
-                className="btn btn-primary" style={{ flex: 1, minWidth: 140 }}>
-                Buy Now
-              </button>
-              <button onClick={handleWishlist}
-                style={{ width: 48, height: 48, borderRadius: 12, border: '2px solid #e5e7eb', background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                <Heart style={{ width: 20, fill: wishlisted ? '#ef4444' : 'none', color: wishlisted ? '#ef4444' : '#9CA3AF' }} />
+              <button
+                onClick={handleBuyNow}
+                disabled={adding || !product.inStock}
+                className={`flex-1 min-w-[150px] py-3.5 rounded-2xl font-extrabold text-sm text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg ${
+                  flashSale
+                    ? 'bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 shadow-orange-200'
+                    : 'bg-green-800 hover:bg-green-700 shadow-green-200'
+                }`}
+              >
+                {flashSale ? '⚡ Buy at Flash Price' : 'Buy Now'}
               </button>
             </div>
 
-            {/* Pincode Check */}
-            <div style={{ background: 'white', border: '1px solid #e5e7eb', borderRadius: 14, padding: '16px', marginBottom: 20 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                <Truck style={{ width: 18, color: '#1B5E20' }} />
-                <span style={{ fontWeight: 700, fontSize: 14 }}>Check Delivery</span>
+            {/* Delivery Check */}
+            <div className="bg-white border border-gray-200 rounded-2xl p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-8 h-8 bg-green-50 rounded-lg flex items-center justify-center">
+                  <MapPin className="w-4 h-4 text-green-700" />
+                </div>
+                <span className="font-bold text-sm text-gray-900">Check Delivery</span>
               </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <input className="input" style={{ flex: 1 }} placeholder="Enter pincode" value={pincode}
-                  onChange={(e) => setPincode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                  onKeyDown={(e) => e.key === 'Enter' && checkPincode()} />
-                <button onClick={checkPincode} className="btn btn-primary btn-sm">Check</button>
+              <div className="flex gap-2">
+                <input
+                  className="flex-1 px-4 py-2.5 rounded-xl border-2 border-gray-200 text-sm focus:border-green-700 focus:outline-none font-semibold"
+                  placeholder="Enter 6-digit pincode"
+                  value={pincode}
+                  onChange={e => setPincode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  onKeyDown={e => e.key === 'Enter' && checkPincode()}
+                />
+                <button onClick={checkPincode} className="px-5 py-2.5 bg-green-800 hover:bg-green-700 text-white font-bold text-sm rounded-xl transition-colors">
+                  Check
+                </button>
               </div>
               {pincodeInfo && (
-                <div style={{ marginTop: 10, padding: '8px 12px', background: pincodeInfo.serviceable ? '#E8F5E9' : '#FEF2F2', borderRadius: 8 }}>
-                  <p style={{ fontSize: 13, fontWeight: 600, color: pincodeInfo.serviceable ? '#1B5E20' : '#DC2626' }}>
+                <div className={`mt-3 p-3 rounded-xl text-sm font-semibold flex items-center gap-2 ${
+                  pincodeInfo.serviceable ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'
+                }`}>
+                  {pincodeInfo.serviceable ? <Truck className="w-4 h-4 flex-shrink-0" /> : <X className="w-4 h-4 flex-shrink-0" />}
+                  <div>
                     {pincodeInfo.message}
-                  </p>
-                  {pincodeInfo.serviceable && <p style={{ fontSize: 12, color: '#6B7280', marginTop: 4 }}>Free shipping on orders above ₹500</p>}
+                    {pincodeInfo.serviceable && <p className="text-xs text-gray-500 font-normal mt-0.5">Free shipping on orders above {RS}500</p>}
+                  </div>
                 </div>
               )}
             </div>
 
-            {/* Trust */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+            {/* Trust badges */}
+            <div className="grid grid-cols-3 gap-3">
               {[
-                { icon: Shield, label: 'Genuine Product' },
-                { icon: Truck, label: 'Fast Delivery' },
-                { icon: RefreshCw, label: '7-Day Return' },
-              ].map(({ icon: Icon, label }) => (
-                <div key={label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '12px 8px', background: '#f9fafb', borderRadius: 12 }}>
-                  <Icon style={{ width: 20, color: '#1B5E20' }} />
-                  <span style={{ fontSize: 11, fontWeight: 700, textAlign: 'center', color: '#374151' }}>{label}</span>
+                { icon: Shield, label: 'Genuine Product', sub: '100% authentic' },
+                { icon: Truck, label: 'Fast Delivery', sub: '2-5 business days' },
+                { icon: RefreshCw, label: '7-Day Return', sub: 'Hassle-free' },
+              ].map(({ icon: Icon, label, sub }) => (
+                <div key={label} className="flex flex-col items-center gap-2 p-3 bg-white border border-gray-100 rounded-2xl text-center">
+                  <div className="w-9 h-9 rounded-xl bg-green-50 flex items-center justify-center">
+                    <Icon className="w-4 h-4 text-green-700" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-gray-800 leading-tight">{label}</p>
+                    <p className="text-[10px] text-gray-400 mt-0.5">{sub}</p>
+                  </div>
                 </div>
               ))}
             </div>
           </div>
         </div>
 
-        {/* Tabs */}
-        <div style={{ background: 'white', borderRadius: 16, marginTop: 24, overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-          <div style={{ display: 'flex', borderBottom: '2px solid #e5e7eb' }}>
+        {/* ════ TABS ════ */}
+        <div className="bg-white rounded-2xl mt-8 overflow-hidden shadow-sm border border-gray-100">
+          <div className="flex border-b border-gray-100 overflow-x-auto">
             {[
               { id: 'description', label: 'Description' },
               { id: 'specs', label: 'Specifications' },
-              { id: 'reviews', label: `Reviews (${product.totalReviews})` },
-            ].map((tab) => (
-              <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-                style={{
-                  flex: 1, padding: '14px 16px', border: 'none', background: 'transparent',
-                  fontWeight: 700, fontSize: 13, cursor: 'pointer', transition: 'all 0.2s',
-                  borderBottom: activeTab === tab.id ? '3px solid #1B5E20' : '3px solid transparent',
-                  color: activeTab === tab.id ? '#1B5E20' : '#6B7280',
-                  marginBottom: -2,
-                }}>
+              { id: 'reviews', label: `Reviews (${product.totalReviews || 0})` },
+            ].map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex-1 min-w-[120px] px-5 py-4 text-sm font-bold transition-all border-b-2 whitespace-nowrap ${
+                  activeTab === tab.id
+                    ? 'border-green-700 text-green-800 bg-green-50/40'
+                    : 'border-transparent text-gray-500 hover:text-gray-800 hover:bg-gray-50'
+                }`}
+              >
                 {tab.label}
               </button>
             ))}
           </div>
-          <div style={{ padding: '24px' }}>
+          <div className="p-6 md:p-8">
             {activeTab === 'description' && (
-              <div style={{ fontSize: 14, lineHeight: 1.8, color: '#374151' }}>
-                {product.description || 'No description available.'}
+              <div className="prose prose-sm max-w-none text-gray-700 leading-relaxed">
+                {product.description || <p className="text-gray-400 italic">No description available.</p>}
               </div>
             )}
             {activeTab === 'specs' && (
-              <div>
+              <div className="divide-y divide-gray-50">
                 {product.specifications
                   ? Object.entries(product.specifications).map(([k, v]) => (
-                    <div key={k} style={{ display: 'flex', padding: '10px 0', borderBottom: '1px solid #f3f4f6' }}>
-                      <span style={{ width: '40%', fontWeight: 700, fontSize: 13, color: '#374151' }}>{k}</span>
-                      <span style={{ fontSize: 13, color: '#6B7280' }}>{v}</span>
+                    <div key={k} className="flex py-3 gap-4">
+                      <span className="w-2/5 font-bold text-sm text-gray-700 flex-shrink-0">{k}</span>
+                      <span className="text-sm text-gray-500">{v}</span>
                     </div>
                   ))
-                  : <p style={{ color: '#6B7280', fontSize: 14 }}>No specifications available.</p>}
+                  : <p className="text-gray-400 italic text-sm">No specifications available.</p>}
               </div>
             )}
             {activeTab === 'reviews' && (
-              <div>
-                {product.reviews?.length === 0
-                  ? <p style={{ color: '#6B7280', fontSize: 14, textAlign: 'center', padding: '20px 0' }}>No reviews yet. Be the first to review!</p>
-                  : product.reviews?.map((r) => (
-                    <div key={r.id} style={{ padding: '16px 0', borderBottom: '1px solid #f3f4f6' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                        <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'linear-gradient(135deg, #1B5E20, #2E7D32)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 800, fontSize: 14 }}>
-                          {r.user?.name?.charAt(0)}
-                        </div>
-                        <div>
-                          <p style={{ fontWeight: 700, fontSize: 13 }}>{r.user?.name}</p>
-                          <div style={{ display: 'flex', gap: 2 }}>
-                            {[1,2,3,4,5].map(s => <Star key={s} style={{ width: 12, fill: s <= r.rating ? '#F59E0B' : 'none', color: s <= r.rating ? '#F59E0B' : '#D1D5DB' }} />)}
-                          </div>
-                        </div>
-                        {r.isVerifiedPurchase && <span style={{ marginLeft: 'auto', background: '#E8F5E9', color: '#1B5E20', padding: '2px 8px', borderRadius: 99, fontSize: 10, fontWeight: 700 }}>✓ Verified</span>}
+              <div className="space-y-5">
+                {!product.reviews?.length
+                  ? <div className="text-center py-8">
+                      <Star className="w-10 h-10 text-gray-200 mx-auto mb-3" />
+                      <p className="text-gray-500 font-semibold text-sm">No reviews yet. Be the first to review!</p>
+                    </div>
+                  : product.reviews.map(r => (
+                    <div key={r.id} className="flex gap-4 pb-5 border-b border-gray-50 last:border-0">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-green-700 to-green-500 flex items-center justify-center text-white font-extrabold text-sm flex-shrink-0">
+                        {r.user?.name?.charAt(0)}
                       </div>
-                      {r.title && <p style={{ fontWeight: 700, fontSize: 13, marginBottom: 4 }}>{r.title}</p>}
-                      {r.body && <p style={{ fontSize: 13, color: '#6B7280', lineHeight: 1.6 }}>{r.body}</p>}
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <span className="font-bold text-sm text-gray-900">{r.user?.name}</span>
+                          <div className="flex gap-0.5">
+                            {[1,2,3,4,5].map(s => (
+                              <Star key={s} className="w-3 h-3"
+                                style={{ fill: s <= r.rating ? '#F59E0B' : 'none', color: s <= r.rating ? '#F59E0B' : '#D1D5DB' }} />
+                            ))}
+                          </div>
+                          {r.isVerifiedPurchase && (
+                            <span className="bg-green-50 text-green-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-green-200">
+                              ✓ Verified
+                            </span>
+                          )}
+                        </div>
+                        {r.title && <p className="font-bold text-sm text-gray-800 mb-1">{r.title}</p>}
+                        {r.body && <p className="text-sm text-gray-600 leading-relaxed">{r.body}</p>}
+                      </div>
                     </div>
                   ))}
               </div>
@@ -330,6 +538,61 @@ export default function ProductPage() {
           </div>
         </div>
       </div>
+
+      {/* ════ MOBILE STICKY CTA ════ */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-3 flex items-center gap-3 md:hidden z-40 shadow-[0_-4px_24px_rgba(0,0,0,0.08)]">
+        <div className="flex-shrink-0">
+          <p className="text-xs text-gray-500 font-semibold leading-none mb-0.5">Price</p>
+          <p className={`font-extrabold text-lg leading-none ${flashSale ? 'text-red-600' : 'text-green-800'}`}>
+            {RS}{fmt(effectivePrice)}
+          </p>
+        </div>
+        <button
+          onClick={handleAddToCart}
+          disabled={adding || !product.inStock}
+          className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-green-800 text-green-800 font-extrabold text-sm hover:bg-green-50 transition-all disabled:opacity-50"
+        >
+          <ShoppingBag className="w-4 h-4" />
+          {adding ? 'Adding…' : 'Add to Cart'}
+        </button>
+        <button
+          onClick={handleBuyNow}
+          disabled={adding || !product.inStock}
+          className={`flex-1 py-3 rounded-xl font-extrabold text-sm text-white transition-all disabled:opacity-50 ${
+            flashSale ? 'bg-gradient-to-r from-red-500 to-orange-500' : 'bg-green-800 hover:bg-green-700'
+          }`}
+        >
+          {flashSale ? '⚡ Buy Now' : 'Buy Now'}
+        </button>
+      </div>
+
+      {/* ════ IMAGE ZOOM MODAL ════ */}
+      {imgZoom && (
+        <div
+          className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4"
+          onClick={() => setImgZoom(false)}
+        >
+          <button className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center text-white transition-colors">
+            <X className="w-5 h-5" />
+          </button>
+          <img
+            src={images[activeImg]?.image || ''}
+            alt={product.name}
+            className="max-w-full max-h-full object-contain rounded-xl"
+            onClick={e => e.stopPropagation()}
+          />
+          {images.length > 1 && (
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2">
+              {images.map((_, i) => (
+                <button key={i} onClick={e => { e.stopPropagation(); setActiveImg(i); }}
+                  className={`rounded-full transition-all ${activeImg === i ? 'w-6 h-2 bg-white' : 'w-2 h-2 bg-white/40'}`}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
+

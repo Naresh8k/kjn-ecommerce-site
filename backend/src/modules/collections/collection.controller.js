@@ -6,49 +6,54 @@ const getCollection = async (req, res) => {
     const { page = 1, limit = 12 } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    // Special handling for flash-sale: read directly from products with active flash sale
+    // Special handling for flash-sale: read from FlashSale table
     if (slug === 'flash-sale') {
       const now = new Date();
 
-      const [products, total] = await Promise.all([
-        prisma.product.findMany({
-          where: {
-            isActive: true,
-            isFlashSale: true,
-            flashSaleEndDate: { gt: now },
-          },
+      const [flashSales, total] = await Promise.all([
+        prisma.flashSale.findMany({
+          where: { isActive: true, endDate: { gte: now }, startDate: { lte: now } },
           skip,
           take: parseInt(limit),
           orderBy: { createdAt: 'desc' },
           include: {
-            images: { where: { isPrimary: true }, take: 1 },
-            category: { select: { name: true, slug: true } },
-            reviews: { select: { rating: true } },
+            product: {
+              include: {
+                images: { where: { isPrimary: true }, take: 1 },
+                category: { select: { name: true, slug: true } },
+                reviews: { select: { rating: true } },
+              },
+            },
           },
         }),
-        prisma.product.count({
-          where: {
-            isActive: true,
-            isFlashSale: true,
-            flashSaleEndDate: { gt: now },
-          },
+        prisma.flashSale.count({
+          where: { isActive: true, endDate: { gte: now }, startDate: { lte: now } },
         }),
       ]);
 
       return res.status(200).json({
         success: true,
         collection: { id: 'flash-sale', name: 'Flash Sale', slug: 'flash-sale' },
-        data: products.map((p) => ({
-          id: p.id, name: p.name, slug: p.slug,
-          mrp: parseFloat(p.mrp), sellingPrice: parseFloat(p.sellingPrice),
-          discountPercent: Math.round(((p.mrp - p.sellingPrice) / p.mrp) * 100),
-          image: p.images[0]?.url || null, category: p.category,
-          inStock: p.stockQuantity > 0,
-          isFlashSale: p.isFlashSale,
-          flashSaleEndDate: p.flashSaleEndDate,
-          averageRating: p.reviews.length > 0
-            ? (p.reviews.reduce((a, b) => a + b.rating, 0) / p.reviews.length).toFixed(1) : null,
-        })),
+        data: flashSales.map((fs) => {
+          const p = fs.product;
+          if (!p) return null;
+          return {
+            id: fs.id,
+            productId: p.id,
+            name: p.name,
+            slug: p.slug,
+            mrp: parseFloat(p.mrp),
+            sellingPrice: parseFloat(p.sellingPrice),
+            flashPrice: parseFloat(fs.flashPrice),
+            discountPercent: Math.round((1 - parseFloat(fs.flashPrice) / parseFloat(p.mrp)) * 100),
+            image: p.images[0]?.url || p.image || null,
+            category: p.category,
+            inStock: p.stockQuantity > 0,
+            endDate: fs.endDate,
+            averageRating: p.reviews.length > 0
+              ? (p.reviews.reduce((a, b) => a + b.rating, 0) / p.reviews.length).toFixed(1) : null,
+          };
+        }).filter(Boolean),
         pagination: { total, page: parseInt(page), totalPages: Math.ceil(total / parseInt(limit)) },
       });
     }

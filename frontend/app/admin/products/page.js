@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { Plus, Search, Edit2, Trash2, X } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, X, Package, Zap } from 'lucide-react';
 import api from '@/lib/api';
 import toast from 'react-hot-toast';
 import ImageUploader from '@/components/admin/ImageUploader';
@@ -22,8 +22,8 @@ export default function AdminProducts() {
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => { 
-    fetchProducts(); 
+  useEffect(() => {
+    fetchProducts();
     fetchCategories();
     fetchBrands();
   }, []);
@@ -33,9 +33,9 @@ export default function AdminProducts() {
     try {
       const res = await api.get('/admin/products?limit=100');
       setProducts(res.data.data || []);
-    } catch (err) { 
+    } catch (err) {
       console.error('Fetch products error:', err);
-      toast.error('Failed to load products'); 
+      toast.error('Failed to load products');
     }
     finally { setLoading(false); }
   };
@@ -66,7 +66,7 @@ export default function AdminProducts() {
   const handleSave = async (e) => {
     e.preventDefault();
     if (!form.name || !form.mrp || !form.sellingPrice) {
-      toast.error('Name, MRP and Selling Price are required'); 
+      toast.error('Name, MRP and Selling Price are required');
       return;
     }
     setSaving(true);
@@ -122,7 +122,7 @@ export default function AdminProducts() {
           <h1 className="font-heading font-extrabold text-2xl text-gray-900">Products</h1>
           <p className="text-sm text-gray-600 mt-1">{products.length} total products</p>
         </div>
-        <button 
+        <button
           onClick={() => { setForm(emptyForm); setEditId(null); setShowForm(true); }}
           className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl font-semibold text-sm hover:bg-primary-900 transition-colors shadow-primary"
         >
@@ -163,7 +163,7 @@ export default function AdminProducts() {
           </div>
           <h3 className="font-heading font-bold text-lg text-gray-900 mb-2">No products found</h3>
           <p className="text-gray-600 mb-4">Get started by creating your first product</p>
-          <button 
+          <button
             onClick={() => { setForm(emptyForm); setEditId(null); setShowForm(true); }}
             className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl font-semibold text-sm hover:bg-primary-900 transition-colors"
           >
@@ -174,18 +174,18 @@ export default function AdminProducts() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {products.filter(p => p.name.toLowerCase().includes(search.toLowerCase())).map((product) => (
-            <div 
-              key={product.id} 
+            <div
+              key={product.id}
               className="bg-white rounded-2xl overflow-hidden border border-gray-200 hover:shadow-lg transition-all duration-300 group"
             >
               {/* Product Image */}
               <div className="relative h-56 bg-gray-50 overflow-hidden">
                 {product.image ? (
-                  <img 
-                    src={product.image} 
+                  <img
+                    src={product.image}
                     alt={product.name}
                     className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                    onError={(e) => { 
+                    onError={(e) => {
                       e.target.onerror = null;
                       e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 24 24" fill="none" stroke="%23D1D5DB" stroke-width="1.5"%3E%3Crect x="3" y="3" width="18" height="18" rx="2"%3E%3C/rect%3E%3Ccircle cx="8.5" cy="8.5" r="1.5"%3E%3C/circle%3E%3Cpolyline points="21 15 16 10 5 21"%3E%3C/polyline%3E%3C/svg%3E';
                     }}
@@ -202,37 +202,40 @@ export default function AdminProducts() {
 
                 {/* Stock Badge */}
                 <div className="absolute top-3 right-3">
-                  <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                    product.stockQuantity > 10 
-                      ? 'bg-emerald-500 text-white' 
-                      : product.stockQuantity > 0 
+                  <span className={`px-3 py-1 rounded-full text-xs font-bold ${product.stockQuantity > 10
+                      ? 'bg-emerald-500 text-white'
+                      : product.stockQuantity > 0
                         ? 'bg-amber-500 text-white'
                         : 'bg-red-500 text-white'
-                  }`}>
+                    }`}>
                     {product.stockQuantity} in stock
                   </span>
                 </div>
 
                 {/* Status Badge */}
-                <div className="absolute top-3 left-3">
-                  <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                    product.isActive 
-                      ? 'bg-primary text-white' 
+                <div className="absolute top-3 left-3 flex gap-1.5">
+                  <span className={`px-3 py-1 rounded-full text-xs font-bold ${product.isActive
+                      ? 'bg-primary text-white'
                       : 'bg-gray-500 text-white'
-                  }`}>
+                    }`}>
                     {product.isActive ? 'Active' : 'Hidden'}
                   </span>
+                  {product.isFlashSale && (
+                    <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-gradient-to-r from-orange-500 to-amber-500 text-white flex items-center gap-1">
+                      <Zap className="w-3 h-3" /> FLASH
+                    </span>
+                  )}
                 </div>
 
                 {/* Quick Actions - Show on Hover */}
                 <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center gap-3">
-                  <button 
+                  <button
                     onClick={() => handleEdit(product)}
                     className="p-3 bg-white rounded-full hover:bg-blue-50 transition-colors"
                   >
                     <Edit2 className="w-5 h-5 text-blue-600" />
                   </button>
-                  <button 
+                  <button
                     onClick={() => handleDelete(product.id, product.name)}
                     className="p-3 bg-white rounded-full hover:bg-red-50 transition-colors"
                   >
@@ -288,7 +291,7 @@ export default function AdminProducts() {
                 {product.isFeatured && (
                   <div className="flex items-center gap-1 text-xs text-amber-600 mb-2">
                     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
                     </svg>
                     <span className="font-semibold">Featured</span>
                   </div>
@@ -303,13 +306,13 @@ export default function AdminProducts() {
 
                 {/* Action Buttons */}
                 <div className="flex gap-2 pt-3 border-t border-gray-100">
-                  <button 
+                  <button
                     onClick={() => handleEdit(product)}
                     className="flex-1 px-3 py-2 bg-blue-50 text-blue-600 rounded-lg font-semibold text-xs hover:bg-blue-100 transition-colors"
                   >
                     Edit
                   </button>
-                  <button 
+                  <button
                     onClick={() => handleDelete(product.id, product.name)}
                     className="flex-1 px-3 py-2 bg-red-50 text-red-600 rounded-lg font-semibold text-xs hover:bg-red-100 transition-colors"
                   >
@@ -346,7 +349,7 @@ export default function AdminProducts() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-2">Name *</label>
-                  <input 
+                  <input
                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-primary-800 focus:ring-4 focus:ring-primary-100 transition-all"
                     value={form.name}
                     onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))}
@@ -356,7 +359,7 @@ export default function AdminProducts() {
                 </div>
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-2">SKU</label>
-                  <input 
+                  <input
                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-primary-800 focus:ring-4 focus:ring-primary-100 transition-all"
                     value={form.sku}
                     onChange={(e) => setForm(f => ({ ...f, sku: e.target.value }))}
@@ -368,7 +371,7 @@ export default function AdminProducts() {
               <div className="grid grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-2">MRP *</label>
-                  <input 
+                  <input
                     type="number"
                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-primary-800 focus:ring-4 focus:ring-primary-100 transition-all"
                     value={form.mrp}
@@ -379,7 +382,7 @@ export default function AdminProducts() {
                 </div>
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-2">Selling Price *</label>
-                  <input 
+                  <input
                     type="number"
                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-primary-800 focus:ring-4 focus:ring-primary-100 transition-all"
                     value={form.sellingPrice}
@@ -390,7 +393,7 @@ export default function AdminProducts() {
                 </div>
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-2">Stock</label>
-                  <input 
+                  <input
                     type="number"
                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-primary-800 focus:ring-4 focus:ring-primary-100 transition-all"
                     value={form.stockQuantity}
@@ -403,7 +406,7 @@ export default function AdminProducts() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-2">Category</label>
-                  <select 
+                  <select
                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-primary-800 focus:ring-4 focus:ring-primary-100 transition-all"
                     value={form.categoryId}
                     onChange={(e) => setForm(f => ({ ...f, categoryId: e.target.value }))}
@@ -416,7 +419,7 @@ export default function AdminProducts() {
                 </div>
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-2">Brand</label>
-                  <select 
+                  <select
                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-primary-800 focus:ring-4 focus:ring-primary-100 transition-all"
                     value={form.brandId}
                     onChange={(e) => setForm(f => ({ ...f, brandId: e.target.value }))}
@@ -431,7 +434,7 @@ export default function AdminProducts() {
 
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-2">Description</label>
-                <textarea 
+                <textarea
                   className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-primary-800 focus:ring-4 focus:ring-primary-100 transition-all resize-vertical"
                   rows="4"
                   value={form.description}
@@ -442,7 +445,7 @@ export default function AdminProducts() {
 
               <div className="flex gap-4">
                 <label className="flex items-center gap-2 cursor-pointer">
-                  <input 
+                  <input
                     type="checkbox"
                     checked={form.isActive}
                     onChange={(e) => setForm(f => ({ ...f, isActive: e.target.checked }))}
@@ -451,7 +454,7 @@ export default function AdminProducts() {
                   <span className="text-sm font-semibold text-gray-700">Active</span>
                 </label>
                 <label className="flex items-center gap-2 cursor-pointer">
-                  <input 
+                  <input
                     type="checkbox"
                     checked={form.isFeatured}
                     onChange={(e) => setForm(f => ({ ...f, isFeatured: e.target.checked }))}
@@ -462,14 +465,14 @@ export default function AdminProducts() {
               </div>
 
               <div className="flex gap-3 pt-4 border-t border-gray-200">
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   onClick={() => setShowForm(false)}
                   className="flex-1 px-5 py-3 bg-white border-2 border-gray-200 rounded-xl font-semibold text-sm hover:bg-gray-50 transition-colors"
                 >
                   Cancel
                 </button>
-                <button 
+                <button
                   type="submit"
                   disabled={saving}
                   className="flex-1 px-5 py-3 bg-primary text-white rounded-xl font-semibold text-sm hover:bg-primary-900 transition-colors shadow-primary disabled:opacity-50"

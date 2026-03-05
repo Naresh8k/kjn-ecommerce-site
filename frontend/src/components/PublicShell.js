@@ -2,7 +2,6 @@
 import { usePathname } from 'next/navigation';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
-import MobileNav from '@/components/layout/MobileNav';
 import WhatsAppButton from '@/components/common/WhatsAppButton';
 import { Gift, Truck, Zap, Shield, Smartphone, Star } from 'lucide-react';
 
@@ -71,7 +70,6 @@ export default function PublicShell({ children }) {
         {children}
       </main>
       <Footer />
-      <MobileNav />
       <WhatsAppButton />
     </>
   );

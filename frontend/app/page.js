@@ -218,7 +218,7 @@ export default function HomePage() {
           api.get('/products?sort=newest&limit=10'),
           api.get('/banners'),
           api.get('/brands?limit=20'),
-          api.get('/collections/flash-sale?limit=1').catch(() => ({ data: { data: [] } })),
+          api.get('/flash-sales/active').catch(() => ({ data: { data: [] } })),
         ]);
         setCategories(catR.data.data || []);
         setFeatured(featR.data.data || []);
@@ -445,17 +445,33 @@ export default function HomePage() {
       {/* PROMO BANNERS */}
       <section className="py-4 bg-gray-50">
         <div className="container mx-auto px-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="rounded-2xl overflow-hidden relative" style={{ background: 'linear-gradient(135deg,#1B5E20,#43A047)', minHeight: 140 }}>
-            <div className="absolute -right-6 -bottom-6 w-36 h-36 rounded-full bg-white/10" />
-            <div className="absolute right-8 -top-4 w-20 h-20 rounded-full bg-white/10" />
-            <div className="p-6 text-white relative z-10">
-              <p className="text-xs font-bold uppercase tracking-widest opacity-80 mb-1">Up to 30% off</p>
-              <h3 className="font-heading font-extrabold text-xl mb-3">Farm Equipment<br />Super Sale</h3>
-              <Link href="/products" className="inline-flex items-center gap-1.5 bg-white text-primary-900 text-xs font-bold px-4 py-2 rounded-full hover:bg-primary-50 transition-colors">
-                Shop Now <ArrowRight className="w-3 h-3" />
-              </Link>
+          {flashSaleActive ? (
+            <Link href="/collections/flash-sale" className="rounded-2xl overflow-hidden relative block" style={{ background: 'linear-gradient(135deg, #B71C1C 0%, #E53935 50%, #FF5722 100%)', minHeight: 140 }}>
+              <div className="absolute -right-6 -bottom-6 w-36 h-36 rounded-full bg-white/10" />
+              <div className="absolute right-8 -top-4 w-20 h-20 rounded-full bg-yellow-400/10" />
+              <div className="p-6 text-white relative z-10">
+                <p className="text-xs font-bold uppercase tracking-widest opacity-80 mb-1 flex items-center gap-1">
+                  <Flame className="w-3 h-3 text-yellow-300" /> Flash Sale Live
+                </p>
+                <h3 className="font-heading font-extrabold text-xl mb-3">Grab Limited<br />Time Deals!</h3>
+                <span className="inline-flex items-center gap-1.5 bg-yellow-400 text-yellow-900 text-xs font-bold px-4 py-2 rounded-full hover:bg-yellow-300 transition-colors">
+                  Shop Now <ArrowRight className="w-3 h-3" />
+                </span>
+              </div>
+            </Link>
+          ) : (
+            <div className="rounded-2xl overflow-hidden relative" style={{ background: 'linear-gradient(135deg,#1B5E20,#43A047)', minHeight: 140 }}>
+              <div className="absolute -right-6 -bottom-6 w-36 h-36 rounded-full bg-white/10" />
+              <div className="absolute right-8 -top-4 w-20 h-20 rounded-full bg-white/10" />
+              <div className="p-6 text-white relative z-10">
+                <p className="text-xs font-bold uppercase tracking-widest opacity-80 mb-1">Up to 30% off</p>
+                <h3 className="font-heading font-extrabold text-xl mb-3">Farm Equipment<br />Super Sale</h3>
+                <Link href="/products" className="inline-flex items-center gap-1.5 bg-white text-primary-900 text-xs font-bold px-4 py-2 rounded-full hover:bg-primary-50 transition-colors">
+                  Shop Now <ArrowRight className="w-3 h-3" />
+                </Link>
+              </div>
             </div>
-          </div>
+          )}
           <div className="rounded-2xl overflow-hidden relative" style={{ background: 'linear-gradient(135deg,#E65100,#FF8F00)', minHeight: 140 }}>
             <div className="absolute -right-6 -bottom-6 w-36 h-36 rounded-full bg-white/10" />
             <div className="absolute right-8 -top-4 w-20 h-20 rounded-full bg-white/10" />

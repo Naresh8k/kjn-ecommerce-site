@@ -65,6 +65,7 @@ app.use('/api/blogs',       require('./modules/blogs/blog.routes'));
 app.use('/api/shipping',    require('./modules/shipping/shipping.routes'));
 app.use('/api/coupons',     require('./modules/coupons/coupon.routes'));
 app.use('/api/admin',       require('./modules/admin/admin.routes'));
+app.use('/api/flash-sales', require('./modules/admin/flashSale.routes'));
 
 // Error handlers (must be last)
 app.use(notFound);
