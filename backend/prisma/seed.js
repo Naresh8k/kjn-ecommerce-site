@@ -47,17 +47,34 @@ async function main() {
       { name: 'Accessories & Spares',   slug: 'accessiories-spare-parts',     sortOrder: 10, imageUrl: 'https://image.cdn.shpy.in/386933/Pngtreegearicon_4812867-1724842776624.png' },
     ];
 
-    const categoryMap = {};
-    for (const cat of categories) {
-      const created = await prisma.category.upsert({
-        where: { slug: cat.slug },
-        update: { imageUrl: cat.imageUrl, sortOrder: cat.sortOrder },
-        create: { ...cat, isActive: true },
-      });
-      categoryMap[cat.slug] = created.id;
-    }
-    console.log(`✅ ${categories.length} categories created\n`);
+    // const categoryMap = {};
+    // for (const cat of categories) {
+    //   const created = await prisma.category.upsert({
+    //     where: { slug: cat.slug },
+    //     update: { imageUrl: cat.imageUrl, sortOrder: cat.sortOrder },
+    //     create: { ...cat, isActive: true },
+    //   });
+    //   categoryMap[cat.slug] = created.id;
+    // }
+    // console.log(`✅ ${categories.length} categories created\n`);
 
+
+    const categoryMap = {};
+for (const cat of categories) {
+  const created = await prisma.category.upsert({
+    where: { slug: cat.slug },
+    update: { image: cat.imageUrl, sortOrder: cat.sortOrder },
+    create: { 
+      name: cat.name,
+      slug: cat.slug,
+      image: cat.imageUrl,
+      sortOrder: cat.sortOrder,
+      isActive: true
+    },
+  });
+
+  categoryMap[cat.slug] = created.id;
+}
     // ──────────────────────────────────────────────────────────
     // 2. BRANDS
     // ──────────────────────────────────────────────────────────
@@ -80,16 +97,34 @@ async function main() {
       { name: 'Kirloskar',          slug: 'kirloskar',             logoUrl: '' },
     ];
 
+    // const brandMap = {};
+    // for (const brand of brands) {
+    //   const created = await prisma.brand.upsert({
+    //     where: { slug: brand.slug },
+    //     update: { logoUrl: brand.logoUrl },
+    //     create: { ...brand, isActive: true },
+    //   });
+    //   brandMap[brand.slug] = created.id;
+    // }
+    // console.log(`✅ ${brands.length} brands created\n`);
+
     const brandMap = {};
-    for (const brand of brands) {
-      const created = await prisma.brand.upsert({
-        where: { slug: brand.slug },
-        update: { logoUrl: brand.logoUrl },
-        create: { ...brand, isActive: true },
-      });
-      brandMap[brand.slug] = created.id;
-    }
-    console.log(`✅ ${brands.length} brands created\n`);
+for (const brand of brands) {
+  const created = await prisma.brand.upsert({
+    where: { slug: brand.slug },
+    update: { logo: brand.logoUrl },
+    create: {
+      name: brand.name,
+      slug: brand.slug,
+      logo: brand.logoUrl,
+      isActive: true
+    },
+  });
+
+  brandMap[brand.slug] = created.id;
+}
+
+console.log(`✅ ${brands.length} brands created\n`);
 
     // ──────────────────────────────────────────────────────────
     // 3. PRODUCTS
@@ -347,22 +382,41 @@ async function main() {
 
     const productMap = {};
     for (const prod of products) {
-      const { categorySlug, brandSlug, ...prodData } = prod;
-      const created = await prisma.product.upsert({
-        where: { slug: prod.slug },
-        update: {
-          mrp: prod.mrp,
-          sellingPrice: prod.sellingPrice,
-          stockQuantity: prod.stockQuantity,
-        },
-        create: {
-          ...prodData,
-          categoryId: categoryMap[categorySlug],
-          brandId: brandSlug ? brandMap[brandSlug] : null,
-          isActive: true,
-          isFeatured: Math.random() > 0.6,
-        },
-      });
+      // const { categorySlug, brandSlug, ...prodData } = prod;
+      // const created = await prisma.product.upsert({
+      //   where: { slug: prod.slug },
+      //   update: {
+      //     mrp: prod.mrp,
+      //     sellingPrice: prod.sellingPrice,
+      //     stockQuantity: prod.stockQuantity,
+      //   },
+      //   create: {
+      //     ...prodData,
+      //     categoryId: categoryMap[categorySlug],
+      //     brandId: brandSlug ? brandMap[brandSlug] : null,
+      //     isActive: true,
+      //     isFeatured: Math.random() > 0.6,
+      //   },
+      // });
+      const { categorySlug, brandSlug, imageUrl, ...prodData } = prod;
+
+const created = await prisma.product.upsert({
+  where: { slug: prod.slug },
+  update: {
+    mrp: prod.mrp,
+    sellingPrice: prod.sellingPrice,
+    stockQuantity: prod.stockQuantity,
+    image: imageUrl
+  },
+  create: {
+    ...prodData,
+    image: imageUrl,
+    categoryId: categoryMap[categorySlug],
+    brandId: brandSlug ? brandMap[brandSlug] : null,
+    isActive: true,
+    isFeatured: Math.random() > 0.6,
+  },
+});
       productMap[prod.slug] = created.id;
 
       // Add product images
@@ -395,15 +449,40 @@ async function main() {
       { name: 'Water Pumps',   slug: 'water-pumps',   description: 'Submersible and surface water pumps',   sortOrder: 5, imageUrl: 'https://image.cdn.shpy.in/386933/Screenshot250-1731403908158.jpeg' },
     ];
 
+    // const collectionMap = {};
+    // for (const col of collections) {
+    //   const created = await prisma.collection.upsert({
+    //     where: { slug: col.slug },
+    //     update: { name: col.name, description: col.description, image: col.imageUrl },
+    //     create: { ...col, isActive: true },
+       
+
+    //   });
+    //   collectionMap[col.slug] = created.id;
+    // }
+
     const collectionMap = {};
-    for (const col of collections) {
-      const created = await prisma.collection.upsert({
-        where: { slug: col.slug },
-        update: { name: col.name, description: col.description, imageUrl: col.imageUrl },
-        create: { ...col, isActive: true },
-      });
-      collectionMap[col.slug] = created.id;
-    }
+for (const col of collections) {
+  const created = await prisma.collection.upsert({
+    where: { slug: col.slug },
+    update: {
+      name: col.name,
+      description: col.description,
+      image: col.imageUrl,
+      sortOrder: col.sortOrder
+    },
+    create: {
+      name: col.name,
+      slug: col.slug,
+      description: col.description,
+      image: col.imageUrl,
+      sortOrder: col.sortOrder,
+      isActive: true
+    },
+  });
+
+  collectionMap[col.slug] = created.id;
+}
     console.log(`✅ ${collections.length} collections created\n`);
 
     // ──────────────────────────────────────────────────────────

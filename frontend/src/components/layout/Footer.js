@@ -5,64 +5,69 @@ import { Phone, Mail, MapPin, Youtube, Twitter, Facebook, Instagram } from 'luci
 
 export default function Footer() {
   return (
-    <footer style={{ background: '#0F2412', color: '#d1d5db', marginTop: 'auto' }}>
-      {/* Top strip */}
-      <div style={{ background: 'linear-gradient(135deg, #1B5E20, #2E7D32)', padding: '20px 0' }}>
-        <div className="container" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+    <footer className="bg-[#0F2412] text-gray-300 mt-auto">
+      {/* Top strip with logo and social icons */}
+      <div className="bg-gradient-to-r from-[#1B5E20] to-[#2E7D32] py-5">
+        <div className="container mx-auto px-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
             <img
               src="https://image.cdn.shpy.in/386933/KJNLogo-1767688579320.jpeg?height=200&format=webp"
               alt="KJN Shop"
-              style={{ height: 44, objectFit: 'contain' }}
+              className="h-11 w-auto object-contain"
             />
             <div>
-              <div style={{ color: 'white', fontFamily: 'Sora', fontWeight: 800, fontSize: 18 }}>KJN Shop</div>
-              {/* tagline removed */}
+              <span className="text-white font-heading font-extrabold text-xl">KJN</span>
+              <p className="text-xs text-green-200/80">Farming & Electronics</p>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 12 }}>
+          <div className="flex gap-2">
             {[
-              { icon: Youtube, href: 'https://youtube.com/@shopatkjn' },
-              { icon: Twitter, href: 'https://x.com/_kjn__' },
-              { icon: Facebook, href: 'https://facebook.com/profile.php?id=61562979543949' },
-              { icon: Instagram, href: 'https://instagram.com/shopatkjn' },
-            ].map(({ icon: Icon, href }) => (
-              <a key={href} href={href} target="_blank" rel="noopener noreferrer"
-                style={{ width: 38, height: 38, background: 'rgba(255,255,255,0.15)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
-                onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.3)'}
-                onMouseOut={e => e.currentTarget.style.background = 'rgba(255,255,255,0.15)'}>
-                <Icon style={{ width: 18, color: 'white' }} />
+              { icon: Youtube, href: 'https://youtube.com/@shopatkjn', label: 'YouTube' },
+              { icon: Twitter, href: 'https://x.com/_kjn__', label: 'Twitter' },
+              { icon: Facebook, href: 'https://facebook.com/profile.php?id=61562979543949', label: 'Facebook' },
+              { icon: Instagram, href: 'https://instagram.com/shopatkjn', label: 'Instagram' },
+            ].map(({ icon: Icon, href, label }) => (
+              <a
+                key={href}
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-9 h-9 bg-white/10 hover:bg-white/25 rounded-lg flex items-center justify-center transition-colors"
+                aria-label={label}
+              >
+                <Icon className="w-4 h-4 text-white" />
               </a>
             ))}
           </div>
         </div>
       </div>
 
-      {/* Main footer */}
-      <div className="container" style={{ padding: '40px 16px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 32 }}>
-
+      {/* Main footer links */}
+      <div className="container mx-auto px-4 py-10">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
           {/* Contact */}
           <div>
-            <h4 style={{ color: 'white', fontFamily: 'Sora', fontWeight: 700, marginBottom: 16, fontSize: 15 }}>Contact Us</h4>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                <MapPin style={{ width: 16, flexShrink: 0, marginTop: 2, color: '#4ade80' }} />
-                <span style={{ fontSize: 13, lineHeight: 1.6 }}>SY No 444/3, Near Bharat Petroleum, Kadiri Road, Mulakalacheruvu, AP – 517390</span>
+            <h4 className="text-white font-heading font-bold text-base mb-4">Contact Us</h4>
+            <div className="space-y-3">
+              <div className="flex gap-2.5">
+                <MapPin className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
+                <span className="text-xs leading-relaxed">
+                  SY No 444/3, Near Bharat Petroleum, Kadiri Road, Mulakalacheruvu, AP – 517390
+                </span>
               </div>
-              <a href="tel:9804599804" style={{ display: 'flex', gap: 10, alignItems: 'center', color: '#d1d5db', fontSize: 13 }}>
-                <Phone style={{ width: 16, color: '#4ade80' }} /> 9804599804
+              <a href="tel:9804599804" className="flex items-center gap-2.5 text-xs hover:text-green-400 transition-colors">
+                <Phone className="w-4 h-4 text-green-400" /> 9804599804
               </a>
-              <a href="mailto:info@shopatkjn.com" style={{ display: 'flex', gap: 10, alignItems: 'center', color: '#d1d5db', fontSize: 13 }}>
-                <Mail style={{ width: 16, color: '#4ade80' }} /> info@shopatkjn.com
+              <a href="mailto:info@shopatkjn.com" className="flex items-center gap-2.5 text-xs hover:text-green-400 transition-colors">
+                <Mail className="w-4 h-4 text-green-400" /> info@shopatkjn.com
               </a>
             </div>
           </div>
 
           {/* Quick Links */}
           <div>
-            <h4 style={{ color: 'white', fontFamily: 'Sora', fontWeight: 700, marginBottom: 16, fontSize: 15 }}>Quick Links</h4>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <h4 className="text-white font-heading font-bold text-base mb-4">Quick Links</h4>
+            <ul className="space-y-2">
               {[
                 { label: 'Home', href: '/' },
                 { label: 'My Orders', href: '/orders' },
@@ -71,19 +76,19 @@ export default function Footer() {
                 { label: 'Blog', href: '/blog' },
                 { label: 'Contact Us', href: '/contact-us' },
               ].map(({ label, href }) => (
-                <Link key={href} href={href} style={{ fontSize: 13, color: '#d1d5db', transition: 'color 0.2s' }}
-                  onMouseOver={e => e.target.style.color = '#4ade80'}
-                  onMouseOut={e => e.target.style.color = '#d1d5db'}>
-                  {label}
-                </Link>
+                <li key={href}>
+                  <Link href={href} className="text-xs hover:text-green-400 transition-colors">
+                    {label}
+                  </Link>
+                </li>
               ))}
-            </div>
+            </ul>
           </div>
 
           {/* Policies */}
           <div>
-            <h4 style={{ color: 'white', fontFamily: 'Sora', fontWeight: 700, marginBottom: 16, fontSize: 15 }}>Policies</h4>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <h4 className="text-white font-heading font-bold text-base mb-4">Policies</h4>
+            <ul className="space-y-2">
               {[
                 { label: 'Payment Policy', href: '/payment-policy' },
                 { label: 'Privacy Policy', href: '/privacy-policy' },
@@ -91,19 +96,19 @@ export default function Footer() {
                 { label: 'Shipping Policy', href: '/shipping-policy' },
                 { label: 'Terms & Conditions', href: '/tos' },
               ].map(({ label, href }) => (
-                <Link key={href} href={href} style={{ fontSize: 13, color: '#d1d5db', transition: 'color 0.2s' }}
-                  onMouseOver={e => e.target.style.color = '#4ade80'}
-                  onMouseOut={e => e.target.style.color = '#d1d5db'}>
-                  {label}
-                </Link>
+                <li key={href}>
+                  <Link href={href} className="text-xs hover:text-green-400 transition-colors">
+                    {label}
+                  </Link>
+                </li>
               ))}
-            </div>
+            </ul>
           </div>
 
           {/* Categories */}
           <div>
-            <h4 style={{ color: 'white', fontFamily: 'Sora', fontWeight: 700, marginBottom: 16, fontSize: 15 }}>Categories</h4>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <h4 className="text-white font-heading font-bold text-base mb-4">Categories</h4>
+            <ul className="space-y-2">
               {[
                 { label: 'Farming Tools', href: '/categories/farm-equipments' },
                 { label: 'Garden Tools', href: '/categories/garden-tools' },
@@ -112,22 +117,28 @@ export default function Footer() {
                 { label: 'Irrigation Fittings', href: '/categories/irrigation-items' },
                 { label: 'Motors & Fittings', href: '/categories/motors-fittings' },
               ].map(({ label, href }) => (
-                <Link key={href} href={href} style={{ fontSize: 13, color: '#d1d5db', transition: 'color 0.2s' }}
-                  onMouseOver={e => e.target.style.color = '#4ade80'}
-                  onMouseOut={e => e.target.style.color = '#d1d5db'}>
-                  {label}
-                </Link>
+                <li key={href}>
+                  <Link href={href} className="text-xs hover:text-green-400 transition-colors">
+                    {label}
+                  </Link>
+                </li>
               ))}
-            </div>
+            </ul>
           </div>
         </div>
       </div>
 
-      {/* Bottom */}
-      <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', padding: '16px 0' }}>
-        <div className="container" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-          <p style={{ fontSize: 12, color: '#9CA3AF' }}>© 2026 KJN Trading Company. All rights reserved. GSTIN: 37CMMPK7267H1ZG</p>
-          <img src="https://image.cdn.shpy.in/static/web-store/payment-methods.png" alt="Payment Methods" style={{ height: 28, opacity: 0.7 }} />
+      {/* Bottom bar */}
+      <div className="border-t border-white/10 py-4">
+        <div className="container mx-auto px-4 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-xs text-gray-400">
+            © 2026 KJN Trading Company. All rights reserved. GSTIN: 37CMMPK7267H1ZG
+          </p>
+          <img
+            src="https://image.cdn.shpy.in/static/web-store/payment-methods.png"
+            alt="Accepted payment methods"
+            className="h-6 opacity-70"
+          />
         </div>
       </div>
     </footer>
