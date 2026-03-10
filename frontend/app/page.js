@@ -277,50 +277,61 @@ function PopupBanner({ banner, onClose }) {
   const bg = banner.bgColor || '#1B3C2B';
   const textColor = banner.textColor || '#ffffff';
   const overlayOpacity = banner.overlayOpacity ?? 0.65;
+  const hasText = banner.title || banner.subtitle || banner.buttonText;
   return (
     <div
-      className="fixed inset-0 z-[999] flex items-center justify-center p-4"
-      style={{ background: `rgba(0,0,0,${overlayOpacity})`, backdropFilter: 'blur(4px)' }}
+      className="fixed inset-0 z-[999] flex items-center justify-center p-3 sm:p-6"
+      style={{ background: `rgba(0,0,0,${overlayOpacity})`, backdropFilter: 'blur(6px)' }}
       onClick={close}
     >
       <div
-        className={`relative rounded-3xl overflow-hidden shadow-2xl max-w-md w-full ${closing ? 'popup-out' : 'popup-in'}`}
-        style={{ background: bg, maxHeight: '90vh' }}
+        className={`relative rounded-2xl sm:rounded-3xl overflow-hidden shadow-2xl w-full ${closing ? 'popup-out' : 'popup-in'}`}
+        style={{
+          background: bg,
+          maxWidth: 'min(680px, 95vw)',
+          maxHeight: '92dvh',
+          display: 'flex',
+          flexDirection: 'column',
+        }}
         onClick={e => e.stopPropagation()}
       >
         {/* Close button */}
         <button
           onClick={close}
-          className="absolute top-3 right-3 z-10 w-8 h-8 rounded-full bg-black/30 hover:bg-black/50 flex items-center justify-center transition-colors"
+          className="absolute top-3 right-3 z-20 w-9 h-9 rounded-full bg-black/40 hover:bg-black/65 flex items-center justify-center transition-colors"
+          style={{ backdropFilter: 'blur(4px)' }}
         >
-          <span style={{ color: textColor, fontSize: 18, lineHeight: 1 }}>×</span>
+          <span style={{ color: '#fff', fontSize: 22, lineHeight: 1, fontWeight: 300 }}>×</span>
         </button>
 
-        {/* Banner image */}
+        {/* Banner image — fills width, natural aspect ratio, scrollable if very tall */}
         {banner.image && (
-          <div className="w-full" style={{ maxHeight: 260, overflow: 'hidden' }}>
+          <div className="w-full overflow-hidden flex-shrink-0" style={{ maxHeight: hasText ? '65dvh' : '92dvh' }}>
             <img
               src={banner.image}
               alt={banner.title || 'Offer'}
-              className="w-full object-cover"
-              style={{ maxHeight: 260 }}
+              className="w-full h-auto block"
+              style={{ objectFit: 'cover', width: '100%' }}
             />
           </div>
         )}
 
-        {/* Text content */}
-        {(banner.title || banner.subtitle || banner.buttonText) && (
-          <div className="p-6 text-center">
+        {/* Text content — only if any text fields present */}
+        {hasText && (
+          <div className="px-6 py-5 sm:px-8 sm:py-6 text-center flex-shrink-0">
             {banner.title && (
               <h2
-                className="font-heading font-extrabold text-2xl leading-tight mb-2"
-                style={{ color: textColor }}
+                className="font-heading font-extrabold leading-tight mb-2"
+                style={{ color: textColor, fontSize: 'clamp(18px,3.5vw,26px)' }}
               >
                 {banner.title}
               </h2>
             )}
             {banner.subtitle && (
-              <p className="text-sm mb-4" style={{ color: textColor, opacity: 0.85 }}>
+              <p
+                className="mb-4 leading-relaxed"
+                style={{ color: textColor, opacity: 0.85, fontSize: 'clamp(13px,1.8vw,15px)' }}
+              >
                 {banner.subtitle}
               </p>
             )}
@@ -328,10 +339,12 @@ function PopupBanner({ banner, onClose }) {
               <a
                 href={banner.linkUrl}
                 onClick={close}
-                className="inline-flex items-center gap-2 font-extrabold px-7 py-3 rounded-full text-sm transition-all hover:-translate-y-0.5 hover:shadow-lg"
+                className="inline-flex items-center gap-2 font-extrabold rounded-full transition-all hover:-translate-y-0.5 hover:shadow-xl"
                 style={{
                   background: textColor,
                   color: bg,
+                  padding: 'clamp(10px,1.5vw,14px) clamp(22px,4vw,36px)',
+                  fontSize: 'clamp(13px,1.6vw,15px)',
                 }}
               >
                 {banner.buttonText || 'Shop Now'} <ArrowRight className="w-4 h-4" />

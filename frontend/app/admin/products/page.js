@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { Plus, Search, Edit2, Trash2, X, Package, Zap } from 'lucide-react';
+import { Plus, Search, Edit2, Eye, EyeOff, X, Package, Zap } from 'lucide-react';
 import api from '@/lib/api';
 import toast from 'react-hot-toast';
 import ImageUploader from '@/components/admin/ImageUploader';
@@ -54,13 +54,18 @@ export default function AdminProducts() {
     } catch { }
   };
 
-  const handleDelete = async (id, name) => {
-    if (!confirm(`Delete "${name}"?`)) return;
+  const handleToggle = async (product) => {
+    const next = !product.isActive;
+    // Optimistic update
+    setProducts(prev => prev.map(p => p.id === product.id ? { ...p, isActive: next } : p));
     try {
-      await api.delete(`/products/${id}`);
-      toast.success('Product deleted');
-      fetchProducts();
-    } catch { toast.error('Failed to delete'); }
+      await api.put(`/products/${product.id}`, { isActive: next });
+      toast.success(next ? 'Product is now visible' : 'Product hidden from store');
+    } catch {
+      // Revert on error
+      setProducts(prev => prev.map(p => p.id === product.id ? { ...p, isActive: !next } : p));
+      toast.error('Failed to update visibility');
+    }
   };
 
   const handleSave = async (e) => {
@@ -232,14 +237,19 @@ export default function AdminProducts() {
                   <button
                     onClick={() => handleEdit(product)}
                     className="p-3 bg-white rounded-full hover:bg-blue-50 transition-colors"
+                    title="Edit product"
                   >
                     <Edit2 className="w-5 h-5 text-blue-600" />
                   </button>
                   <button
-                    onClick={() => handleDelete(product.id, product.name)}
-                    className="p-3 bg-white rounded-full hover:bg-red-50 transition-colors"
+                    onClick={() => handleToggle(product)}
+                    className={`p-3 bg-white rounded-full transition-colors ${product.isActive ? 'hover:bg-amber-50' : 'hover:bg-green-50'}`}
+                    title={product.isActive ? 'Hide from store' : 'Show in store'}
                   >
-                    <Trash2 className="w-5 h-5 text-red-600" />
+                    {product.isActive
+                      ? <EyeOff className="w-5 h-5 text-amber-500" />
+                      : <Eye className="w-5 h-5 text-green-600" />
+                    }
                   </button>
                 </div>
               </div>
@@ -313,10 +323,17 @@ export default function AdminProducts() {
                     Edit
                   </button>
                   <button
-                    onClick={() => handleDelete(product.id, product.name)}
-                    className="flex-1 px-3 py-2 bg-red-50 text-red-600 rounded-lg font-semibold text-xs hover:bg-red-100 transition-colors"
+                    onClick={() => handleToggle(product)}
+                    className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg font-semibold text-xs transition-colors ${
+                      product.isActive
+                        ? 'bg-amber-50 text-amber-600 hover:bg-amber-100'
+                        : 'bg-green-50 text-green-600 hover:bg-green-100'
+                    }`}
                   >
-                    Delete
+                    {product.isActive
+                      ? <><EyeOff className="w-3.5 h-3.5" /> Hide</>
+                      : <><Eye className="w-3.5 h-3.5" /> Show</>
+                    }
                   </button>
                 </div>
               </div>

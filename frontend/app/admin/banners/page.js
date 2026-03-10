@@ -196,53 +196,61 @@ function BannerSkeleton() {
 function PopupPreview({ form }) {
   const bg = form.bgColor || '#1B3C2B';
   const textColor = form.textColor || '#ffffff';
+  const hasText = form.title || form.subtitle || form.buttonText;
   return (
-    <div className="rounded-xl overflow-hidden border-2 border-dashed border-purple-200 bg-gray-800/60 p-3">
-      <p className="text-xs font-bold text-purple-600 mb-2 uppercase tracking-wide">Live Popup Preview</p>
-      <div
-        className="relative rounded-2xl overflow-hidden mx-auto shadow-xl"
-        style={{ background: bg, maxWidth: 320 }}
-      >
-        {/* fake close btn */}
-        <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-black/30 flex items-center justify-center z-10">
-          <span style={{ color: textColor, fontSize: 14, lineHeight: 1 }}>×</span>
+    <div className="rounded-xl overflow-hidden border-2 border-dashed border-purple-200 bg-gray-800 p-3">
+      <p className="text-xs font-bold text-purple-400 mb-2 uppercase tracking-wide">Live Popup Preview</p>
+      {/* Simulated dark overlay backdrop */}
+      <div className="relative rounded-xl overflow-hidden" style={{ background: `rgba(0,0,0,${form.overlayOpacity ?? 0.65})` }}>
+        <div
+          className="relative rounded-xl overflow-hidden shadow-xl mx-auto"
+          style={{ background: bg, maxWidth: 340 }}
+        >
+          {/* fake close btn */}
+          <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-black/40 flex items-center justify-center z-10">
+            <span style={{ color: '#fff', fontSize: 14, lineHeight: 1 }}>×</span>
+          </div>
+          {form.image ? (
+            <img
+              src={form.image}
+              alt="popup preview"
+              className="w-full h-auto block"
+              style={{ maxHeight: hasText ? 180 : 260, objectFit: 'cover' }}
+            />
+          ) : (
+            <div className="w-full flex items-center justify-center py-10" style={{ color: textColor, opacity: 0.3 }}>
+              <div className="text-center">
+                <div className="text-4xl mb-1">🖼️</div>
+                <p className="text-xs">Upload image to preview</p>
+              </div>
+            </div>
+          )}
+          {hasText && (
+            <div className="px-4 py-3 text-center">
+              {form.title && (
+                <p className="font-extrabold text-sm leading-tight mb-1" style={{ color: textColor }}>
+                  {form.title}
+                </p>
+              )}
+              {form.subtitle && (
+                <p className="text-xs mb-2" style={{ color: textColor, opacity: 0.85 }}>
+                  {form.subtitle}
+                </p>
+              )}
+              {(form.linkUrl || form.buttonText) && (
+                <span
+                  className="inline-flex items-center gap-1 font-bold text-xs px-4 py-1.5 rounded-full"
+                  style={{ background: textColor, color: bg }}
+                >
+                  {form.buttonText || 'Shop Now'} →
+                </span>
+              )}
+            </div>
+          )}
         </div>
-        {form.image && (
-          <div style={{ maxHeight: 120, overflow: 'hidden' }}>
-            <img src={form.image} alt="popup" className="w-full object-cover" style={{ maxHeight: 120 }} />
-          </div>
-        )}
-        {(form.title || form.subtitle || form.buttonText) && (
-          <div className="px-4 py-3 text-center">
-            {form.title && (
-              <p className="font-extrabold text-sm leading-tight mb-1" style={{ color: textColor }}>
-                {form.title}
-              </p>
-            )}
-            {form.subtitle && (
-              <p className="text-xs mb-2" style={{ color: textColor, opacity: 0.85 }}>
-                {form.subtitle}
-              </p>
-            )}
-            {(form.linkUrl || form.buttonText) && (
-              <span
-                className="inline-flex items-center gap-1 font-bold text-xs px-4 py-1.5 rounded-full"
-                style={{ background: textColor, color: bg }}
-              >
-                {form.buttonText || 'Shop Now'} <ArrowRight className="w-3 h-3" />
-              </span>
-            )}
-          </div>
-        )}
-        {!form.image && !form.title && !form.subtitle && (
-          <div className="py-6 text-center" style={{ color: textColor, opacity: 0.4 }}>
-            <ImageIcon className="w-8 h-8 mx-auto mb-1" />
-            <p className="text-xs">Add image or title to see preview</p>
-          </div>
-        )}
       </div>
       <p className="text-[10px] text-gray-400 text-center mt-2">
-        Appears after <strong>{form.popupDelay ?? 1}s</strong> delay · overlay {Math.round((form.overlayOpacity ?? 0.65) * 100)}% dark
+        Appears after <strong>{form.popupDelay ?? 1}s</strong> · overlay {Math.round((form.overlayOpacity ?? 0.65) * 100)}% dark · up to 680px wide
       </p>
     </div>
   );
