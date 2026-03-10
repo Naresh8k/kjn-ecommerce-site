@@ -8,8 +8,22 @@ import ImageUploader from '@/components/admin/ImageUploader';
 const emptyForm = {
   name: '', slug: '', sku: '', mrp: '', sellingPrice: '', gstPercent: '18',
   stockQuantity: '', categoryId: '', brandId: '', image: '',
-  shortDescription: '', description: '', isActive: true, isFeatured: false
+  shortDescription: '', description: '', isActive: true, isFeatured: false,
+  specifications: []
 };
+
+function parseSpecs(specs) {
+  if (!specs || typeof specs !== 'object' || Array.isArray(specs)) return [];
+  return Object.entries(specs).map(([key, value]) => ({ key, value: String(value) }));
+}
+
+function serializeSpecs(specsArr) {
+  const obj = {};
+  for (const { key, value } of specsArr) {
+    if (key.trim()) obj[key.trim()] = value;
+  }
+  return Object.keys(obj).length > 0 ? obj : null;
+}
 
 export default function AdminProducts() {
   const [products, setProducts] = useState([]);
@@ -76,14 +90,16 @@ export default function AdminProducts() {
     }
     setSaving(true);
     try {
+      const { specifications: specsArr, ...formRest } = form;
       const payload = {
-        ...form,
+        ...formRest,
         mrp: parseFloat(form.mrp),
         sellingPrice: parseFloat(form.sellingPrice),
         gstPercent: parseFloat(form.gstPercent || 18),
         stockQuantity: parseInt(form.stockQuantity || 0),
         categoryId: form.categoryId || null,
         brandId: form.brandId || null,
+        specifications: serializeSpecs(specsArr),
       };
 
       if (editId) {
@@ -113,7 +129,8 @@ export default function AdminProducts() {
       image: p.image || '',
       shortDescription: p.shortDescription || '',
       description: p.description || '',
-      isActive: p.isActive !== false, isFeatured: p.isFeatured || false
+      isActive: p.isActive !== false, isFeatured: p.isFeatured || false,
+      specifications: parseSpecs(p.specifications)
     });
     setEditId(p.id);
     setShowForm(true);
@@ -458,6 +475,57 @@ export default function AdminProducts() {
                   onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))}
                   placeholder="Product description..."
                 />
+              </div>
+
+              {/* Specifications */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-bold text-gray-700">Specifications</label>
+                  <button
+                    type="button"
+                    onClick={() => setForm(f => ({ ...f, specifications: [...f.specifications, { key: '', value: '' }] }))}
+                    className="text-xs font-bold text-primary-900 hover:text-primary-700 flex items-center gap-1"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Add Row
+                  </button>
+                </div>
+                {form.specifications.length === 0 ? (
+                  <p className="text-xs text-gray-400 italic">No specifications added yet.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {form.specifications.map((spec, idx) => (
+                      <div key={idx} className="flex gap-2 items-center">
+                        <input
+                          className="flex-1 px-3 py-2 border-2 border-gray-200 rounded-xl text-sm focus:border-primary-800 focus:ring-4 focus:ring-primary-100 transition-all"
+                          placeholder="Property (e.g. Weight)"
+                          value={spec.key}
+                          onChange={e => setForm(f => {
+                            const specs = [...f.specifications];
+                            specs[idx] = { ...specs[idx], key: e.target.value };
+                            return { ...f, specifications: specs };
+                          })}
+                        />
+                        <input
+                          className="flex-1 px-3 py-2 border-2 border-gray-200 rounded-xl text-sm focus:border-primary-800 focus:ring-4 focus:ring-primary-100 transition-all"
+                          placeholder="Value (e.g. 5 kg)"
+                          value={spec.value}
+                          onChange={e => setForm(f => {
+                            const specs = [...f.specifications];
+                            specs[idx] = { ...specs[idx], value: e.target.value };
+                            return { ...f, specifications: specs };
+                          })}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setForm(f => ({ ...f, specifications: f.specifications.filter((_, i) => i !== idx) }))}
+                          className="p-2 text-gray-400 hover:text-red-500 transition-colors flex-shrink-0"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="flex gap-4">

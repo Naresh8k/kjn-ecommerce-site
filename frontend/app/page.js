@@ -370,11 +370,8 @@ export default function HomePage() {
   const [flashSaleActive, setFlashSaleActive] = useState(false);
   const [activeTab, setActiveTab] = useState('featured');
   const [slideKey, setSlideKey] = useState(0);
-  const [tractorAnimating, setTractorAnimating] = useState(false);
-  const [tractorIdle, setTractorIdle] = useState(false);
   const [statsActive, setStatsActive] = useState(false);
   const timerRef = useRef(null);
-  const tractorEmojiRef = useRef(null);
 
   const allSlides = [
     { type: flashSaleActive ? 'flashSale' : 'static' },
@@ -409,7 +406,6 @@ export default function HomePage() {
         console.error(e);
       } finally {
         setLoading(false);
-        setTimeout(() => setTractorIdle(true), 1200);
       }
     })();
   }, []);
@@ -417,26 +413,18 @@ export default function HomePage() {
   useEffect(() => {
     if (allSlides.length <= 1) return;
     timerRef.current = setInterval(() => {
-      setTractorAnimating(true);
-      setTractorIdle(false);
       setTimeout(() => {
         setSlide(p => (p + 1) % allSlides.length);
         setSlideKey(k => k + 1);
-        setTractorAnimating(false);
-        setTimeout(() => setTractorIdle(true), 1000);
       }, 420);
     }, 5500);
     return () => clearInterval(timerRef.current);
   }, [allSlides.length]);
 
   const goToSlide = (idx) => {
-    setTractorAnimating(true);
-    setTractorIdle(false);
     setTimeout(() => {
       setSlide(idx);
       setSlideKey(k => k + 1);
-      setTractorAnimating(false);
-      setTimeout(() => setTractorIdle(true), 1000);
     }, 420);
   };
   const prevSlide = () => { clearInterval(timerRef.current); goToSlide((slide - 1 + allSlides.length) % allSlides.length); };
@@ -552,57 +540,6 @@ export default function HomePage() {
                         </div>
                       </div>
                     </div>
-
-                    {/* ── Tractor assembly (right side) ── */}
-                    <div className="absolute right-3 md:right-8 top-1/2 -translate-y-1/2 pointer-events-none select-none" style={{ zIndex: 3 }}>
-                      <div style={{ position: 'relative', display: 'inline-block' }}>
-                        {/* Silencer smoke — dynamically positioned relative to actual tractor size */}
-                        {/*<SmokeCanvas active={!tractorAnimating} tractorRef={tractorEmojiRef} />*/}
-
-                        {/* Ground shadow */}
-                        <div style={{
-                          position: 'absolute', bottom: -6, left: '50%',
-                          transform: 'translateX(-50%)',
-                          width: 90, height: 12,
-                          background: 'radial-gradient(ellipse,rgba(0,0,0,.35) 0%,transparent 75%)',
-                          animation: tractorIdle ? 'shadow-idle 1.6s ease-in-out infinite' : 'none',
-                          transformOrigin: 'center bottom',
-                        }} />
-
-                        {/* Tractor emoji — visible on all sizes, smaller on mobile */}
-                        <div
-                          ref={tractorEmojiRef}
-                          key={slideKey + '-tractor'}
-                          style={{
-                            fontSize: 'clamp(3.8rem, 10vw, 7rem)',
-                            lineHeight: 1, display: 'block',
-                            filter: 'drop-shadow(0 12px 36px rgba(0,0,0,.4))',
-                            animation: tractorAnimating
-                              ? 'tractor-exit-left .45s cubic-bezier(.4,0,1,1) forwards'
-                              : tractorIdle
-                              ? 'tractor-idle 1.6s ease-in-out infinite'
-                              : 'tractor-ride-in 1.1s cubic-bezier(.22,1,.36,1) forwards',
-                          }}
-                        >🚜</div>
-
-                        {/* Soil chunks — only when idling */}
-                        {tractorIdle && [0,1,2,3,4].map(j => (
-                          <div
-                            key={j}
-                            style={{
-                              position: 'absolute',
-                              width:  4 + j * 1.5, height: 4 + j * 1.5,
-                              borderRadius: '40% 60% 55% 45%',
-                              background: `hsl(${25+j*4},55%,${32+j*4}%)`,
-                              bottom: 10 + j * 3,
-                              right: 100 + j * 8,
-                              animation: `soil-fly ${0.9 + j*0.12}s ${j*0.14}s ease-out infinite`,
-                              opacity: 0,
-                            }}
-                          />
-                        ))}
-                      </div>
-                    </div>
                   </div>
                 ) : (
                   <div
@@ -656,25 +593,6 @@ export default function HomePage() {
                 )
               )}
             </div>
-
-            {allSlides.length > 1 && (
-              <>
-                <button onClick={prevSlide} className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/35 hover:bg-black/55 text-white flex items-center justify-center z-20 backdrop-blur-sm transition-colors">
-                  <ChevronLeft className="w-5 h-5" />
-                </button>
-                <button onClick={nextSlide} className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/35 hover:bg-black/55 text-white flex items-center justify-center z-20 backdrop-blur-sm transition-colors">
-                  <ChevronRight className="w-5 h-5" />
-                </button>
-                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5 z-20">
-                  {allSlides.map((_, i) => (
-                    <button key={i} onClick={() => goToSlide(i)}
-                      className="rounded-full transition-all duration-300"
-                      style={{ width: i === slide ? 22 : 7, height: 7, background: i === slide ? '#fff' : 'rgba(255,255,255,.45)' }}
-                    />
-                  ))}
-                </div>
-              </>
-            )}
           </div>
         )}
       </section>
