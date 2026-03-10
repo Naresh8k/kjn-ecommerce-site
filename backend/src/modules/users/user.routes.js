@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { getProfile, updateProfile, getAddresses, addAddress, updateAddress, deleteAddress, getWishlist, toggleWishlist, getNotifications, markNotificationsRead } = require('./user.controller');
+const { getProfile, updateProfile, getAddresses, addAddress, updateAddress, deleteAddress, getWishlist, toggleWishlist, getNotifications, markNotificationsRead, sendEmailChangeOTP, verifyEmailChangeOTP } = require('./user.controller');
 const { protect } = require('../../middleware/auth.middleware');
 
 router.get('/profile', protect, getProfile);
@@ -13,5 +13,7 @@ router.get('/wishlist', protect, getWishlist);
 router.post('/wishlist/:productId', protect, toggleWishlist);
 router.get('/notifications', protect, getNotifications);
 router.put('/notifications/read-all', protect, markNotificationsRead);
+router.post('/email/send-otp', protect, sendEmailChangeOTP);
+router.post('/email/verify-otp', protect, verifyEmailChangeOTP);
 
 module.exports = router;

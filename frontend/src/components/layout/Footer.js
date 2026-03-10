@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Phone, Mail, MapPin, Youtube, Twitter, Facebook, Instagram } from 'lucide-react';
+import { Phone, Mail, MapPin, Youtube, Twitter, Facebook, Instagram, Headphones } from 'lucide-react';
 
 export default function Footer() {
   return (
@@ -44,7 +44,7 @@ export default function Footer() {
 
       {/* Main footer links */}
       <div className="container mx-auto px-4 py-10">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-8">
           {/* Contact */}
           <div>
             <h4 className="text-white font-heading font-bold text-base mb-4">Contact Us</h4>
@@ -103,6 +103,31 @@ export default function Footer() {
                 </li>
               ))}
             </ul>
+          </div>
+
+          {/* Technical Support */}
+          <div>
+            <h4 className="text-white font-heading font-bold text-base mb-4">Technical Support</h4>
+            <div className="space-y-4">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <Headphones className="w-3.5 h-3.5 text-green-400 flex-shrink-0" />
+                  <span className="text-xs font-bold text-white">Naresh Kireedula</span>
+                </div>
+                <a href="mailto:nareshk@shopatkjn.com" className="flex items-center gap-2 text-xs hover:text-green-400 transition-colors ml-5">
+                  <Mail className="w-3 h-3 text-green-400 flex-shrink-0" /> nareshk@shopatkjn.com
+                </a>
+              </div>
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <Headphones className="w-3.5 h-3.5 text-green-400 flex-shrink-0" />
+                  <span className="text-xs font-bold text-white">Charan Kumar</span>
+                </div>
+                <a href="mailto:charan@shopatkjn.com" className="flex items-center gap-2 text-xs hover:text-green-400 transition-colors ml-5">
+                  <Mail className="w-3 h-3 text-green-400 flex-shrink-0" /> charan@shopatkjn.com
+                </a>
+              </div>
+            </div>
           </div>
 
           {/* Categories */}

@@ -309,17 +309,13 @@ export default function LoginPage() {
                     <div className="flex-1 h-px bg-gray-200" />
                   </div>
 
-                  <div className="text-center space-y-2">
+                  <div className="text-center">
                     <p className="text-sm text-gray-500">
                       New here?{' '}
                       <Link href="/signup" className="text-primary-900 font-bold hover:underline">
                         Create Account
                       </Link>
                     </p>
-                    <button type="button" onClick={() => setUsePassword(true)}
-                      className="text-sm text-gray-500 hover:text-gray-700 font-semibold transition-colors">
-                      Admin? Login with password &rarr;
-                    </button>
                   </div>
                 </form>
               )}
