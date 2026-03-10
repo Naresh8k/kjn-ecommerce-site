@@ -259,6 +259,7 @@ const getOrderById = async (req, res) => {
         shippingAddress: true,
         user: { select: { name: true, email: true, phone: true } },
       },
+      // shipmozoShipmentId and shipmozoCourier are scalar fields, always returned
     });
 
     if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
@@ -357,8 +358,8 @@ const updateOrderStatus = async (req, res) => {
       where: { id },
       data: {
         status,
-        trackingId: trackingId || undefined,
-        awbNumber: awbNumber || undefined,
+        ...(trackingId ? { trackingId } : {}),
+        ...(awbNumber ? { awbNumber } : {}),
         // Auto-mark COD orders as PAID when delivered
         ...(status === 'DELIVERED' ? { paymentStatus: 'PAID' } : {}),
       },

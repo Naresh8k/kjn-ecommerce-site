@@ -4,7 +4,9 @@ import { useSearchParams } from 'next/navigation';
 import {
   Search, Eye, Download,
   Package, Truck, MapPin, Phone, User, X, Copy,
-  Tag, FileText, ChevronLeft, ChevronRight
+  Tag, FileText, ChevronLeft, ChevronRight, ExternalLink, Zap,
+  CreditCard, RefreshCw, RotateCcw, AlertCircle, CheckCircle,
+  Clock, XCircle, IndianRupee, ShieldAlert, ArrowUpRight,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '@/lib/api';
@@ -26,6 +28,22 @@ const statusColors = {
 
 const allStatuses = ['PENDING', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED', 'RETURNED', 'REFUNDED'];
 
+const paymentStatusConfig = {
+  PAID:           { bg: 'bg-green-50',  text: 'text-green-700',  border: 'border-green-200',  dot: 'bg-green-500',  Icon: CheckCircle },
+  PENDING:        { bg: 'bg-amber-50',  text: 'text-amber-700',  border: 'border-amber-200',  dot: 'bg-amber-500',  Icon: Clock       },
+  FAILED:         { bg: 'bg-red-50',    text: 'text-red-700',    border: 'border-red-200',    dot: 'bg-red-500',    Icon: XCircle     },
+  REFUNDED:       { bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200', dot: 'bg-purple-400', Icon: RotateCcw   },
+  PARTIAL_REFUND: { bg: 'bg-blue-50',   text: 'text-blue-700',   border: 'border-blue-200',   dot: 'bg-blue-500',   Icon: RotateCcw   },
+};
+
+const rzpMethodConfig = {
+  upi:        { label: 'UPI',         color: 'text-violet-700', bg: 'bg-violet-50', border: 'border-violet-200' },
+  card:       { label: 'Card',        color: 'text-blue-700',   bg: 'bg-blue-50',   border: 'border-blue-200'   },
+  netbanking: { label: 'Net Banking', color: 'text-indigo-700', bg: 'bg-indigo-50', border: 'border-indigo-200' },
+  wallet:     { label: 'Wallet',      color: 'text-pink-700',   bg: 'bg-pink-50',   border: 'border-pink-200'   },
+  emi:        { label: 'EMI',         color: 'text-teal-700',   bg: 'bg-teal-50',   border: 'border-teal-200'   },
+};
+
 function StatusBadge({ status }) {
   const c = statusColors[status] || statusColors.PENDING;
   return (
@@ -33,6 +51,27 @@ function StatusBadge({ status }) {
       <span className={`w-1.5 h-1.5 rounded-full ${c.dot}`} />
       {status?.replace('_', ' ')}
     </span>
+  );
+}
+
+function PaymentStatusBadge({ status }) {
+  const c = paymentStatusConfig[status] || paymentStatusConfig.PENDING;
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${c.bg} ${c.text} ${c.border}`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${c.dot}`} />
+      {status?.replace('_', ' ')}
+    </span>
+  );
+}
+
+function CopyBtn({ text, className = '' }) {
+  return (
+    <button
+      onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(text); toast.success('Copied!'); }}
+      className={`text-gray-300 hover:text-gray-500 transition-colors ${className}`}
+    >
+      <Copy className="w-3 h-3" />
+    </button>
   );
 }
 
@@ -262,17 +301,360 @@ function OrdersContent() {
           onUpdate={handleStatusUpdate}
           onDownload={handleDownloadInvoice}
           updating={updating}
+          onRefresh={() => { fetchOrders(); fetchCounts(); }}
         />
       )}
     </div>
   );
 }
 
-/* ═══ Order Detail Modal ═══ */
-function OrderDetailsModal({ order, onClose, onUpdate, onDownload, updating }) {
+/* === Razorpay Payment Panel === */
+function RazorpayPaymentPanel({ order, onRefreshOrder }) {
+  const [rzpData,       setRzpData]       = useState(null);
+  const [loadingRzp,    setLoadingRzp]    = useState(false);
+  const [fetchedOnce,   setFetchedOnce]   = useState(false);
+  const [refunds,       setRefunds]       = useState([]);
+  const [loadingRef,    setLoadingRef]    = useState(false);
+  const [showRefundDlg, setShowRefundDlg] = useState(false);
+  const [refundType,    setRefundType]    = useState('full');
+  const [refundAmt,     setRefundAmt]     = useState('');
+  const [refundReason,  setRefundReason]  = useState('');
+  const [submitting,    setSubmitting]    = useState(false);
+
+  const isCOD       = order.paymentMethod === 'COD';
+  const hasPayment  = !!order.paymentId;
+  const maxRefund   = parseFloat(order.totalAmount);
+
+  // Fetch live Razorpay payment details
+  const fetchRzp = async () => {
+    if (!hasPayment) return;
+    setLoadingRzp(true);
+    try {
+      const r = await api.get(`/payments/details/${order.paymentId}`);
+      setRzpData(r.data.data);
+      setFetchedOnce(true);
+    } catch { toast.error('Could not fetch Razorpay details'); }
+    finally { setLoadingRzp(false); }
+  };
+
+  // Fetch refunds for this order
+  const fetchRefunds = async () => {
+    setLoadingRef(true);
+    try {
+      const r = await api.get(`/payments/refunds?limit=50`);
+      const all = r.data.data || [];
+      setRefunds(all.filter(rf => rf.orderId === order.id));
+    } catch {}
+    finally { setLoadingRef(false); }
+  };
+
+  // Auto-load if order has a payment ID
+  useEffect(() => {
+    if (hasPayment && !fetchedOnce) {
+      fetchRzp();
+      fetchRefunds();
+    }
+  }, [order.id]);
+
+  const handleRefund = async (e) => {
+    e.preventDefault();
+    if (!refundReason.trim()) { toast.error('Reason is required'); return; }
+    const amt = refundType === 'full' ? maxRefund : parseFloat(refundAmt);
+    if (!amt || amt <= 0 || amt > maxRefund) { toast.error(`Amount must be between ₹1 and ₹${maxRefund}`); return; }
+    setSubmitting(true);
+    try {
+      const payload = { orderId: order.id, reason: refundReason.trim() };
+      if (refundType === 'partial') payload.amount = amt;
+      await api.post('/payments/refund', payload);
+      toast.success(`Refund of ₹${amt} initiated!`);
+      setShowRefundDlg(false);
+      setRefundReason('');
+      setRefundAmt('');
+      fetchRefunds();
+      if (onRefreshOrder) onRefreshOrder();
+    } catch (err) { toast.error(err.response?.data?.message || 'Failed to initiate refund'); }
+    finally { setSubmitting(false); }
+  };
+
+  const RS = String.fromCharCode(8377);
+  const fmt = n => Number(n || 0).toLocaleString('en-IN');
+
+  // COD orders — minimal panel
+  if (isCOD) {
+    return (
+      <div className="border-2 border-gray-200 bg-gray-50 rounded-xl p-4">
+        <div className="flex items-center gap-2 mb-2">
+          <IndianRupee className="w-3.5 h-3.5 text-gray-500" />
+          <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Payment — Cash on Delivery</h3>
+        </div>
+        <p className="text-xs text-gray-400">COD orders are not processed through Razorpay. No online payment data available.</p>
+        <div className="mt-3 flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-gray-200 text-xs">
+          <span className="text-gray-500">Collection Status</span>
+          <PaymentStatusBadge status={order.paymentStatus} />
+        </div>
+      </div>
+    );
+  }
+
+  // Online order without paymentId yet
+  if (!hasPayment) {
+    return (
+      <div className="border-2 border-amber-200 bg-amber-50 rounded-xl p-4">
+        <div className="flex items-center gap-2 mb-1">
+          <Clock className="w-3.5 h-3.5 text-amber-600" />
+          <h3 className="text-xs font-bold text-amber-700 uppercase tracking-wider">Payment — Awaiting</h3>
+        </div>
+        <p className="text-xs text-amber-600">Customer has not completed payment yet. The Razorpay order was created but no payment captured.</p>
+        {order.razorpayOrderId && (
+          <div className="mt-3 flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-amber-200 text-xs">
+            <span className="text-gray-500">Razorpay Order ID</span>
+            <div className="flex items-center gap-1.5">
+              <span className="font-mono text-gray-700">{order.razorpayOrderId}</span>
+              <CopyBtn text={order.razorpayOrderId} />
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Full Razorpay panel for captured payments
+  const pCfg = rzpData ? (rzpMethodConfig[rzpData.method] || {}) : {};
+
+  return (
+    <div className="border-2 border-blue-200 bg-blue-50/30 rounded-xl overflow-hidden">
+      {/* Panel header */}
+      <div className="flex items-center justify-between px-4 py-3 bg-blue-50 border-b border-blue-100">
+        <div className="flex items-center gap-2">
+          <CreditCard className="w-3.5 h-3.5 text-blue-700" />
+          <h3 className="text-xs font-bold text-blue-800 uppercase tracking-wider">Razorpay Payment</h3>
+        </div>
+        <div className="flex items-center gap-2">
+          <PaymentStatusBadge status={order.paymentStatus} />
+          <button
+            onClick={fetchRzp}
+            disabled={loadingRzp}
+            className="w-7 h-7 rounded-lg bg-white border border-blue-200 flex items-center justify-center hover:bg-blue-50 transition-colors"
+            title="Refresh from Razorpay"
+          >
+            <RefreshCw className={`w-3 h-3 text-blue-600 ${loadingRzp ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
+      </div>
+
+      <div className="p-4 space-y-4">
+        {/* Amount hero */}
+        <div className="flex items-center justify-between bg-white rounded-xl px-4 py-3 border border-blue-100">
+          <div>
+            <p className="text-2xl font-extrabold text-gray-900">{RS}{fmt(order.totalAmount)}</p>
+            <p className="text-xs text-gray-400 mt-0.5">
+              {rzpData ? `${rzpData.currency || 'INR'} · ${new Date(rzpData.created_at * 1000).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' })}` : 'Online Payment'}
+            </p>
+          </div>
+          {rzpData?.method && (
+            <span className={`text-[10px] font-extrabold uppercase px-2.5 py-1.5 rounded-xl border ${pCfg.bg || 'bg-gray-50'} ${pCfg.color || 'text-gray-600'} ${pCfg.border || 'border-gray-200'}`}>
+              {pCfg.label || rzpData.method}
+            </span>
+          )}
+        </div>
+
+        {/* Loading skeleton */}
+        {loadingRzp && !rzpData && (
+          <div className="space-y-2">
+            {[1,2,3].map(i => <div key={i} className="h-6 bg-blue-100/60 rounded-lg animate-pulse" />)}
+          </div>
+        )}
+
+        {/* Live Razorpay data */}
+        {rzpData && (
+          <>
+            {/* Method details */}
+            <div className="bg-white rounded-xl p-3 border border-blue-100 space-y-2">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Method Details</p>
+              {[
+                { label: 'Method',        value: rzpData.method?.toUpperCase() },
+                { label: 'Bank',          value: rzpData.bank },
+                { label: 'Card Network',  value: rzpData.card?.network },
+                { label: 'Card Type',     value: rzpData.card?.type },
+                { label: 'Card Issuer',   value: rzpData.card?.issuer },
+                { label: 'Last 4 Digits', value: rzpData.card?.last4 ? `•••• ${rzpData.card.last4}` : null },
+                { label: 'Wallet',        value: rzpData.wallet },
+                { label: 'UPI / VPA',     value: rzpData.vpa },
+                { label: 'EMI Months',    value: rzpData.emi ? `${rzpData.emi_duration} months @ ${rzpData.emi_plan?.rate || ''}%` : null },
+              ].filter(r => r.value).map(({ label, value }) => (
+                <div key={label} className="flex justify-between text-xs">
+                  <span className="text-gray-400">{label}</span>
+                  <span className="font-semibold text-gray-700">{value}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Contact */}
+            {(rzpData.email || rzpData.contact) && (
+              <div className="bg-white rounded-xl p-3 border border-blue-100 space-y-2">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Customer Contact (Razorpay)</p>
+                {rzpData.email   && <div className="flex justify-between text-xs"><span className="text-gray-400">Email</span><span className="font-semibold text-gray-700">{rzpData.email}</span></div>}
+                {rzpData.contact && <div className="flex justify-between text-xs"><span className="text-gray-400">Phone</span><span className="font-semibold text-gray-700">{rzpData.contact}</span></div>}
+              </div>
+            )}
+
+            {/* Reference IDs */}
+            <div className="bg-white rounded-xl p-3 border border-blue-100 space-y-2.5">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Reference IDs</p>
+              {[
+                { label: 'Payment ID',       value: rzpData.id || order.paymentId },
+                { label: 'Razorpay Order ID', value: rzpData.order_id || order.razorpayOrderId },
+                { label: 'Invoice ID',        value: rzpData.invoice_id },
+              ].filter(r => r.value).map(({ label, value }) => (
+                <div key={label} className="flex items-center justify-between gap-2">
+                  <span className="text-xs text-gray-400 flex-shrink-0">{label}</span>
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="text-xs font-mono text-gray-600 truncate">{value}</span>
+                    <CopyBtn text={value} />
+                  </div>
+                </div>
+              ))}
+              <a
+                href={`https://dashboard.razorpay.com/app/payments/${rzpData.id || order.paymentId}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 text-xs font-bold text-blue-700 hover:text-blue-800 mt-1"
+              >
+                <ExternalLink className="w-3 h-3" /> View in Razorpay Dashboard
+              </a>
+            </div>
+          </>
+        )}
+
+        {/* Refunds list */}
+        {refunds.length > 0 && (
+          <div className="bg-white rounded-xl p-3 border border-purple-100 space-y-2">
+            <p className="text-[10px] font-bold text-purple-600 uppercase tracking-wider flex items-center gap-1.5">
+              <RotateCcw className="w-3 h-3" /> Refunds ({refunds.length})
+            </p>
+            {refunds.map(rf => (
+              <div key={rf.id} className="flex items-center justify-between text-xs py-1.5 border-t border-gray-50 first:border-0">
+                <div className="flex flex-col gap-0.5">
+                  <span className="font-semibold text-gray-700">{RS}{fmt(rf.amount)}</span>
+                  <span className="text-gray-400 text-[10px]">{rf.reason?.slice(0, 40) || '—'}</span>
+                </div>
+                <div className="flex flex-col items-end gap-0.5">
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                    rf.status === 'PROCESSED' ? 'bg-green-50 text-green-700 border-green-200'
+                    : rf.status === 'FAILED'  ? 'bg-red-50 text-red-700 border-red-200'
+                    : 'bg-amber-50 text-amber-700 border-amber-200'
+                  }`}>{rf.status}</span>
+                  {rf.razorpayRefundId && (
+                    <div className="flex items-center gap-1">
+                      <span className="font-mono text-[10px] text-gray-400">{rf.razorpayRefundId.slice(0, 14)}...</span>
+                      <CopyBtn text={rf.razorpayRefundId} />
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Action buttons */}
+        <div className="flex gap-2">
+          {/* Refund button — only for captured online payments not fully refunded */}
+          {!isCOD && hasPayment && !['REFUNDED'].includes(order.paymentStatus) && (
+            <button
+              onClick={() => setShowRefundDlg(v => !v)}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition-all ${
+                showRefundDlg
+                  ? 'bg-red-600 text-white border-red-600'
+                  : 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'
+              }`}
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              {showRefundDlg ? 'Cancel' : 'Initiate Refund'}
+            </button>
+          )}
+          {hasPayment && (
+            <a
+              href={`https://dashboard.razorpay.com/app/payments/${order.paymentId}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border bg-white text-blue-700 border-blue-200 hover:bg-blue-50 transition-colors"
+            >
+              <ArrowUpRight className="w-3.5 h-3.5" /> Razorpay
+            </a>
+          )}
+        </div>
+
+        {/* Inline Refund Form */}
+        {showRefundDlg && (
+          <form onSubmit={handleRefund} className="bg-red-50 border-2 border-red-200 rounded-xl p-4 space-y-3">
+            <p className="text-xs font-bold text-red-800 uppercase tracking-wider flex items-center gap-1.5">
+              <AlertCircle className="w-3.5 h-3.5" /> Initiate Refund
+            </p>
+
+            {/* Full / Partial toggle */}
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { id: 'full',    label: 'Full Refund',    sub: `${RS}${fmt(maxRefund)}` },
+                { id: 'partial', label: 'Partial Refund', sub: 'Enter amount' },
+              ].map(opt => (
+                <button key={opt.id} type="button"
+                  onClick={() => { setRefundType(opt.id); if (opt.id === 'full') setRefundAmt(String(maxRefund)); }}
+                  className={`p-2.5 rounded-xl border-2 text-left transition-all ${refundType === opt.id ? 'border-red-600 bg-white' : 'border-red-200 bg-white/60 hover:border-red-300'}`}>
+                  <p className={`text-xs font-bold ${refundType === opt.id ? 'text-red-700' : 'text-gray-600'}`}>{opt.label}</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">{opt.sub}</p>
+                </button>
+              ))}
+            </div>
+
+            {/* Partial amount */}
+            {refundType === 'partial' && (
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400">{RS}</span>
+                <input
+                  type="number" step="0.01" min="1" max={maxRefund}
+                  placeholder="0.00" value={refundAmt} onChange={e => setRefundAmt(e.target.value)} required
+                  className="w-full pl-7 pr-3 py-2 rounded-lg border border-red-200 text-sm outline-none focus:ring-2 focus:ring-red-400 bg-white"
+                />
+              </div>
+            )}
+
+            {/* Reason */}
+            <textarea rows={2} required placeholder="Reason for refund (e.g. customer requested cancellation)..."
+              value={refundReason} onChange={e => setRefundReason(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border border-red-200 text-xs outline-none focus:ring-2 focus:ring-red-400 bg-white resize-none"
+            />
+
+            {/* Warning */}
+            <div className="text-[10px] text-red-600 bg-red-100 rounded-lg px-3 py-2 space-y-0.5">
+              <p className="font-bold">⚠ This action is irreversible once submitted to Razorpay.</p>
+              <p>Customer will be notified via email. Reflects in bank in 5–7 business days.</p>
+            </div>
+
+            <button type="submit" disabled={submitting || !refundReason.trim()}
+              className="w-full py-2.5 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold rounded-xl flex items-center justify-center gap-2 text-xs transition-colors">
+              {submitting
+                ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Processing...</>
+                : <><RotateCcw className="w-3.5 h-3.5" /> Confirm Refund of {RS}{fmt(refundType === 'full' ? maxRefund : (refundAmt || 0))}</>}
+            </button>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* === Order Detail Modal === */
+function OrderDetailsModal({ order, onClose, onUpdate, onDownload, updating, onRefresh }) {
   const [newStatus, setNewStatus] = useState(order.status);
   const [trackingId, setTrackingId] = useState(order.trackingId || '');
   const [awbNumber, setAwbNumber] = useState(order.awbNumber || '');
+
+  // ShipMozo state
+  const [smWeight, setSmWeight] = useState('');
+  const [creatingShipment, setCreatingShipment] = useState(false);
+  const [cancellingShipment, setCancellingShipment] = useState(false);
+  const [smTracking, setSmTracking] = useState(null);
+  const [trackingLoading, setTrackingLoading] = useState(false);
 
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text);
@@ -284,6 +666,47 @@ function OrderDetailsModal({ order, onClose, onUpdate, onDownload, updating }) {
     if (item.product?.image) return item.product.image;
     if (item.product?.images?.[0]?.image) return item.product.images[0].image;
     return null;
+  };
+
+  const handleCreateShipment = async () => {
+    setCreatingShipment(true);
+    try {
+      const body = {};
+      if (smWeight) body.weightGrams = parseInt(smWeight);
+      const r = await api.post(`/shipmozo/orders/${order.id}/create-shipment`, body);
+      toast.success('Shipment created on ShipMozo!');
+      if (onRefresh) onRefresh();
+      onClose();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to create shipment');
+    } finally {
+      setCreatingShipment(false);
+    }
+  };
+
+  const handleCancelShipment = async () => {
+    if (!confirm('Cancel this shipment on ShipMozo?')) return;
+    setCancellingShipment(true);
+    try {
+      await api.post(`/shipmozo/orders/${order.id}/cancel-shipment`);
+      toast.success('Shipment cancellation requested');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to cancel');
+    } finally {
+      setCancellingShipment(false);
+    }
+  };
+
+  const handleFetchTracking = async () => {
+    setTrackingLoading(true);
+    try {
+      const r = await api.get(`/shipmozo/orders/${order.id}/track`);
+      setSmTracking(r.data.data);
+    } catch {
+      toast.error('Could not fetch tracking info');
+    } finally {
+      setTrackingLoading(false);
+    }
   };
 
   return (
@@ -315,12 +738,12 @@ function OrderDetailsModal({ order, onClose, onUpdate, onDownload, updating }) {
 
         <div className="p-6 space-y-6">
           {/* Status + Payment */}
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2">
             <StatusBadge status={order.status} />
-            <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${order.paymentStatus === 'PAID' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
-              {order.paymentStatus}
+            <PaymentStatusBadge status={order.paymentStatus} />
+            <span className="text-xs text-gray-500 font-bold border border-gray-200 bg-gray-50 px-2.5 py-1 rounded-full">
+              {order.paymentMethod === 'COD' ? '💵 COD' : `💳 ${order.paymentMethod || 'Online'}`}
             </span>
-            <span className="text-xs text-gray-400 border border-gray-200 px-2.5 py-1 rounded-full">{order.paymentMethod}</span>
           </div>
 
           {/* Customer */}
@@ -348,7 +771,7 @@ function OrderDetailsModal({ order, onClose, onUpdate, onDownload, updating }) {
               <p className="text-sm text-gray-700 leading-relaxed">
                 {order.shippingAddress.name} · {order.shippingAddress.phone}<br />
                 {order.shippingAddress.line1}{order.shippingAddress.line2 ? `, ${order.shippingAddress.line2}` : ''}<br />
-                {order.shippingAddress.city}, {order.shippingAddress.state} — {order.shippingAddress.pincode}
+                {order.shippingAddress.city}, {order.shippingAddress.state} - {order.shippingAddress.pincode}
               </p>
             </div>
           )}
@@ -393,6 +816,117 @@ function OrderDetailsModal({ order, onClose, onUpdate, onDownload, updating }) {
               <span className="font-bold text-gray-900">Total</span>
               <span className="font-extrabold text-lg text-gray-900">{RS}{fmt(order.totalAmount)}</span>
             </div>
+          </div>
+
+          {/* ======= Razorpay Payment Panel ======= */}
+          <RazorpayPaymentPanel order={order} onRefreshOrder={onRefresh} />
+
+          {/* ======= ShipMozo Panel ======= */}
+          <div className="border-2 border-orange-200 bg-orange-50 rounded-xl p-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-bold text-orange-800 uppercase tracking-wider flex items-center gap-1.5">
+                <Truck className="w-3.5 h-3.5" /> ShipMozo Shipping
+              </h3>
+              <a href="https://app.shipmozo.com" target="_blank" rel="noopener noreferrer"
+                className="text-[10px] font-bold text-orange-600 hover:text-orange-700 flex items-center gap-1">
+                Open ShipMozo <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+
+            {/* Existing shipment info */}
+            {order.shipmozoShipmentId ? (
+              <div className="bg-white rounded-lg p-3 border border-orange-200 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-gray-400 uppercase">ShipMozo ID</span>
+                  <span className="text-xs font-extrabold text-orange-700 font-mono">{order.shipmozoShipmentId}</span>
+                </div>
+                {order.awbNumber && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase">AWB Number</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-extrabold text-gray-800 font-mono">{order.awbNumber}</span>
+                      <button onClick={() => copyToClipboard(order.awbNumber)} className="text-gray-400 hover:text-gray-600">
+                        <Copy className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {order.shipmozoCourier && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase">Courier</span>
+                    <span className="text-xs font-semibold text-gray-700">{order.shipmozoCourier}</span>
+                  </div>
+                )}
+                <div className="flex gap-2 pt-1">
+                  <button
+                    onClick={handleFetchTracking}
+                    disabled={trackingLoading}
+                    className="flex-1 py-2 bg-orange-100 hover:bg-orange-200 text-orange-800 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50"
+                  >
+                    {trackingLoading
+                      ? <><div className="w-3 h-3 border-2 border-orange-600 border-t-transparent rounded-full animate-spin" /> Loading...</>
+                      : <><Zap className="w-3 h-3" /> Live Track</>}
+                  </button>
+                  <button
+                    onClick={handleCancelShipment}
+                    disabled={cancellingShipment}
+                    className="px-3 py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-xs font-bold transition-colors disabled:opacity-50"
+                  >
+                    {cancellingShipment ? 'Cancelling...' : 'Cancel'}
+                  </button>
+                </div>
+                {/* Live tracking events */}
+                {smTracking && (
+                  <div className="mt-2 space-y-2">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase">Live Tracking</p>
+                    {(smTracking?.tracking?.data?.scans || smTracking?.data?.scans || smTracking?.scans || []).length > 0 ? (
+                      <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                        {(smTracking?.tracking?.data?.scans || smTracking?.data?.scans || smTracking?.scans || []).map((scan, i) => (
+                          <div key={i} className="flex gap-2 text-xs">
+                            <span className="text-gray-400 whitespace-nowrap flex-shrink-0">{scan.date || scan.scan_date || ''}</span>
+                            <span className="text-gray-700 font-medium">{scan.location || scan.city || ''}</span>
+                            <span className="text-gray-500">{scan.status || scan.activity || scan.remark || ''}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-gray-400">No tracking events yet</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* Create shipment form */
+              <div className="space-y-3">
+                <p className="text-xs text-orange-700">No shipment created yet. Book it on ShipMozo:</p>
+                <div>
+                  <label className="text-[10px] font-bold text-gray-500 uppercase">
+                    Total Weight (grams) <span className="text-gray-400 normal-case font-normal">- leave empty to auto-calculate</span>
+                  </label>
+                  <input
+                    type="number"
+                    placeholder="e.g. 1500"
+                    value={smWeight}
+                    onChange={e => setSmWeight(e.target.value)}
+                    className="mt-1 w-full px-3 py-2 rounded-lg border border-orange-200 bg-white text-sm outline-none focus:ring-2 focus:ring-orange-400"
+                  />
+                </div>
+                <div className="bg-white rounded-lg p-3 border border-orange-200 text-xs text-gray-600 space-y-1">
+                  <div className="flex justify-between"><span className="text-gray-400">Payment</span><span className="font-bold">{order.paymentMethod === 'COD' ? 'COD' : 'Prepaid'}</span></div>
+                  <div className="flex justify-between"><span className="text-gray-400">Amount</span><span className="font-bold">{RS}{fmt(order.totalAmount)}</span></div>
+                  <div className="flex justify-between"><span className="text-gray-400">Pincode</span><span className="font-bold">{order.shippingAddress?.pincode}</span></div>
+                </div>
+                <button
+                  onClick={handleCreateShipment}
+                  disabled={creatingShipment}
+                  className="w-full py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                >
+                  {creatingShipment
+                    ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Creating...</>
+                    : <><Truck className="w-4 h-4" /> Create Shipment on ShipMozo</>}
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Status Update */}

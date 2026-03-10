@@ -66,6 +66,8 @@ app.use('/api/shipping',    require('./modules/shipping/shipping.routes'));
 app.use('/api/coupons',     require('./modules/coupons/coupon.routes'));
 app.use('/api/admin',       require('./modules/admin/admin.routes'));
 app.use('/api/flash-sales', require('./modules/admin/flashSale.routes'));
+app.use('/api/contact',     require('./modules/contact/contact.routes'));
+app.use('/api/shipmozo',    require('./modules/shipmozo/shipmozo.routes'));
 
 // Error handlers (must be last)
 app.use(notFound);

@@ -31,6 +31,7 @@ model User {
   cart         Cart?
   notifications Notification[]
   couponUsages  CouponUsage[]
+  refundsInitiated Refund[]    @relation("RefundInitiatedBy")
 }
 
 enum Role {
@@ -220,7 +221,10 @@ model Order {
   awbNumber         String?
   couponCode        String?
   invoiceNumber     String?       @unique
+  shipmozoShipmentId String?
+  shipmozoCourier   String?
   items             OrderItem[]
+  refunds           Refund[]
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 }
@@ -242,6 +246,7 @@ enum PaymentStatus {
   PAID
   FAILED
   REFUNDED
+  PARTIAL_REFUND
 }
 
 model OrderItem {
@@ -402,4 +407,51 @@ model SignupSession {
   expiresAt DateTime
   createdAt DateTime @default(now())
   @@index([email, expiresAt])
+}
+
+model ContactMessage {
+  id         String                @id @default(uuid())
+  name       String
+  phone      String
+  email      String?
+  message    String
+  status     ContactMessageStatus  @default(UNREAD)
+  adminNote  String?
+  adminReply String?
+  repliedAt  DateTime?
+  createdAt  DateTime              @default(now())
+  updatedAt  DateTime              @updatedAt
+  @@index([status])
+  @@index([createdAt])
+}
+
+enum ContactMessageStatus {
+  UNREAD
+  READ
+  REPLIED
+  ARCHIVED
+}
+
+model Refund {
+  id                String       @id @default(uuid())
+  orderId           String
+  order             Order        @relation(fields: [orderId], references: [id])
+  razorpayRefundId  String?      @unique
+  razorpayPaymentId String?
+  amount            Decimal      @db.Decimal(10, 2)
+  reason            String?
+  status            RefundStatus @default(PENDING)
+  initiatedById     String
+  initiatedBy       User         @relation("RefundInitiatedBy", fields: [initiatedById], references: [id])
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  @@index([orderId])
+  @@index([status])
+}
+
+enum RefundStatus {
+  PENDING
+  PROCESSED
+  FAILED
 }

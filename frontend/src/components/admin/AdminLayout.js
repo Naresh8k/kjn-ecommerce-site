@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, Package, ShoppingBag, Users, Tag, ImageIcon,
   FileText, Menu, LogOut, Layers, Zap, Bell, TrendingUp,
-  ChevronDown, Boxes, X, ChevronRight, Star
+  ChevronDown, Boxes, X, ChevronRight, Star, MessageSquare, RotateCcw, CreditCard
 } from 'lucide-react';
 import useAuthStore from '@/store/useAuthStore';
 import toast from 'react-hot-toast';
@@ -25,14 +25,16 @@ const navItems = [
   {
     label: 'Sales', icon: TrendingUp,
     children: [
-      { label: 'Orders', href: '/admin/orders', icon: ShoppingBag },
-      { label: 'Flash Sales', href: '/admin/flash-sales', icon: Zap },
-      { label: 'Coupons', href: '/admin/coupons', icon: Tag },
-      { label: 'Revenue', href: '/admin/revenue', icon: TrendingUp },
+      { label: 'Orders',     href: '/admin/orders',     icon: ShoppingBag },
+      { label: 'Flash Sales', href: '/admin/flash-sales', icon: Zap        },
+      { label: 'Coupons',     href: '/admin/coupons',     icon: Tag        },
+      { label: 'Revenue',     href: '/admin/revenue',     icon: TrendingUp },
+      { label: 'Payments',    href: '/admin/payments',    icon: CreditCard },
     ]
   },
   { label: 'Customers', href: '/admin/customers', icon: Users },
   { label: 'Reviews', href: '/admin/reviews', icon: Star },
+  { label: 'Contact Messages', href: '/admin/contact-messages', icon: MessageSquare },
   {
     label: 'Content', icon: FileText,
     children: [

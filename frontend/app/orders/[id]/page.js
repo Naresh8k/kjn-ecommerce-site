@@ -6,7 +6,7 @@ import {
   Package, MapPin, ChevronRight, Phone, AlertCircle,
   CheckCircle, Clock, Truck, XCircle, RotateCcw,
   ArrowLeft, MessageCircle, CreditCard, Tag, Download, FileText,
-  Star, X
+  Star, X, Copy, ExternalLink, IndianRupee, ShieldCheck,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '@/lib/api';
@@ -15,6 +15,24 @@ import WriteReview from '@/components/product/WriteReview';
 
 const RS = '₹';
 function fmt(n) { return Number(n).toLocaleString('en-IN'); }
+
+// Payment method display config
+const PAYMENT_METHOD_META = {
+  upi:        { label: 'UPI',         emoji: '📱', color: 'text-violet-700', bg: 'bg-violet-50', border: 'border-violet-200' },
+  card:       { label: 'Card',        emoji: '💳', color: 'text-blue-700',   bg: 'bg-blue-50',   border: 'border-blue-200'   },
+  netbanking: { label: 'Net Banking', emoji: '🏦', color: 'text-indigo-700', bg: 'bg-indigo-50', border: 'border-indigo-200' },
+  wallet:     { label: 'Wallet',      emoji: '👜', color: 'text-pink-700',   bg: 'bg-pink-50',   border: 'border-pink-200'   },
+  emi:        { label: 'EMI',         emoji: '📅', color: 'text-teal-700',   bg: 'bg-teal-50',   border: 'border-teal-200'   },
+  cod:        { label: 'Cash on Delivery', emoji: '💵', color: 'text-amber-700', bg: 'bg-amber-50', border: 'border-amber-200' },
+};
+
+const PAYMENT_STATUS_META = {
+  PAID:           { label: 'Paid',             cls: 'bg-green-50 text-green-700 border-green-200',   dot: 'bg-green-500'  },
+  PENDING:        { label: 'Pending',          cls: 'bg-amber-50 text-amber-700 border-amber-200',   dot: 'bg-amber-500'  },
+  FAILED:         { label: 'Failed',           cls: 'bg-red-50 text-red-700 border-red-200',         dot: 'bg-red-500'    },
+  REFUNDED:       { label: 'Refunded',         cls: 'bg-purple-50 text-purple-700 border-purple-200', dot: 'bg-purple-500' },
+  PARTIAL_REFUND: { label: 'Partial Refund',   cls: 'bg-blue-50 text-blue-700 border-blue-200',      dot: 'bg-blue-500'   },
+};
 
 const NO_IMG = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80' viewBox='0 0 24 24' fill='none' stroke='%23D1D5DB' stroke-width='1.5'%3E%3Crect x='3' y='3' width='18' height='18' rx='2'/%3E%3Ccircle cx='8.5' cy='8.5' r='1.5'/%3E%3Cpolyline points='21 15 16 10 5 21'/%3E%3C/svg%3E";
 
@@ -169,23 +187,47 @@ function SkeletonDetail() {
 }
 
 export default function OrderDetailPage() {
-  const { id } = useParams();
-  const router = useRouter();
-  const { isAuthenticated } = useAuthStore();
-  const [order, setOrder] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [cancelling, setCancelling] = useState(false);
-  const [reviewItem, setReviewItem] = useState(null); // { productId, productName }
-  // Map of productId -> { canReview, reason, existingReview }
-  const [itemReviews, setItemReviews] = useState({});
+const { id } = useParams();
+const router = useRouter();
+const { isAuthenticated } = useAuthStore();
+const [order, setOrder] = useState(null);
+const [loading, setLoading] = useState(true);
+const [cancelling, setCancelling] = useState(false);
+const [reviewItem, setReviewItem] = useState(null);
+const [itemReviews, setItemReviews] = useState({});
+
+// ShipMozo tracking
+const [tracking, setTracking] = useState(null);
+const [trackingLoading, setTrackingLoading] = useState(false);
+const [trackingError, setTrackingError] = useState(false);
+
+// Razorpay refunds for this order (fetched from public order data)
+const [orderRefunds, setOrderRefunds] = useState([]);
 
   useEffect(() => {
     if (!isAuthenticated) { router.push('/login'); return; }
     api.get(`/orders/${id}`)
-      .then(r => setOrder(r.data.data))
+      .then(r => {
+        const o = r.data.data;
+        setOrder(o);
+        // order.refunds comes included from the orders endpoint
+        if (o.refunds?.length) setOrderRefunds(o.refunds);
+      })
       .catch(() => router.push('/orders'))
       .finally(() => setLoading(false));
   }, [id]);
+
+  // Auto-fetch tracking when order is SHIPPED or later
+  useEffect(() => {
+    if (!order) return;
+    const trackableStatuses = ['SHIPPED', 'OUT_FOR_DELIVERY', 'DELIVERED'];
+    if (!trackableStatuses.includes(order.status) || !order.awbNumber) return;
+    setTrackingLoading(true);
+    api.get(`/shipmozo/orders/${id}/track`)
+      .then(r => setTracking(r.data.data))
+      .catch(() => setTrackingError(true))
+      .finally(() => setTrackingLoading(false));
+  }, [order]);
 
   // Once order loads and is DELIVERED, fetch review eligibility for each item
   useEffect(() => {
@@ -319,6 +361,84 @@ export default function OrderDetailPage() {
           <Stepper status={order.status} />
         </SectionCard>
 
+        {/* ShipMozo Live Tracking */}
+        {['SHIPPED', 'OUT_FOR_DELIVERY', 'DELIVERED'].includes(order.status) && (
+          <SectionCard title="Live Tracking" icon={Truck}>
+            {order.awbNumber && (
+              <div className="flex flex-wrap items-center gap-3 mb-4">
+                <div className="bg-primary-50 border border-primary-100 rounded-xl px-4 py-2">
+                  <p className="text-[10px] text-primary-700 font-semibold uppercase tracking-wide">AWB</p>
+                  <p className="text-sm font-extrabold text-primary-900 font-mono">{order.awbNumber}</p>
+                </div>
+                {order.shipmozoCourier && (
+                  <div className="bg-gray-50 border border-gray-100 rounded-xl px-4 py-2">
+                    <p className="text-[10px] text-gray-500 font-semibold uppercase tracking-wide">Courier</p>
+                    <p className="text-sm font-extrabold text-gray-800">{order.shipmozoCourier}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {trackingLoading && (
+              <div className="flex flex-col gap-2">
+                {[1,2,3].map(i => <div key={i} className="h-10 bg-gray-100 rounded-xl animate-pulse" />)}
+              </div>
+            )}
+
+            {!trackingLoading && trackingError && (
+              <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-700">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <span>Live tracking is not available right now. Check back later.</span>
+              </div>
+            )}
+
+            {!trackingLoading && !trackingError && tracking && (() => {
+              const scans = tracking?.tracking?.data?.scans || tracking?.data?.scans || tracking?.scans || [];
+              return scans.length > 0 ? (
+                <ol className="relative border-l-2 border-primary-100 ml-2 space-y-4">
+                  {scans.map((scan, i) => (
+                    <li key={i} className="ml-5 relative">
+                      <span className={`absolute -left-[22px] flex items-center justify-center w-4 h-4 rounded-full border-2 ${i === 0 ? 'bg-primary-900 border-primary-900' : 'bg-white border-primary-200'}`}>
+                        {i === 0 && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                      </span>
+                      <div className={`rounded-xl px-4 py-3 ${i === 0 ? 'bg-primary-50 border border-primary-200' : 'bg-gray-50 border border-gray-100'}`}>
+                        <p className={`text-xs font-extrabold ${i === 0 ? 'text-primary-900' : 'text-gray-700'}`}>
+                          {scan.status || scan.activity || scan.remark || 'Update'}
+                        </p>
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
+                          {(scan.location || scan.city) && (
+                            <span className="text-[11px] text-gray-500 font-semibold flex items-center gap-1">
+                              <MapPin className="w-3 h-3" />{scan.location || scan.city}
+                            </span>
+                          )}
+                          {(scan.date || scan.scan_date || scan.timestamp) && (
+                            <span className="text-[11px] text-gray-400">
+                              {scan.date || scan.scan_date || scan.timestamp}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+              ) : (
+                <div className="text-center py-6">
+                  <Truck className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                  <p className="text-sm text-gray-400 font-semibold">Your package is on its way.</p>
+                  <p className="text-xs text-gray-400">Tracking events will appear here soon.</p>
+                </div>
+              );
+            })()}
+
+            {!trackingLoading && !trackingError && !tracking && !order.awbNumber && (
+              <div className="text-center py-6">
+                <Truck className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                <p className="text-sm text-gray-400 font-semibold">Tracking details will be updated shortly.</p>
+              </div>
+            )}
+          </SectionCard>
+        )}
+
         {/* Items card */}
         <SectionCard title={`Order Items (${order.items?.length ?? 0})`} icon={Package}>
           <div className="space-y-4">
@@ -395,8 +515,9 @@ export default function OrderDetailPage() {
         {/* Price + Address — 2 col on desktop */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
-          {/* Payment Summary */}
+          {/* Payment Summary — Enriched */}
           <SectionCard title="Payment Summary" icon={CreditCard}>
+            {/* Price breakdown */}
             <div className="space-y-2.5">
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500 font-semibold">Subtotal</span>
@@ -407,8 +528,7 @@ export default function OrderDetailPage() {
                   <span className="text-green-600 font-semibold flex items-center gap-1.5">
                     <Tag className="w-3 h-3" />
                     {order.couponCode ? (
-                      <span>
-                        Coupon{' '}
+                      <span>Coupon{' '}
                         <span className="font-extrabold tracking-wide bg-green-100 text-green-700 px-1.5 py-0.5 rounded-md text-[11px]">
                           {order.couponCode}
                         </span>
@@ -433,30 +553,137 @@ export default function OrderDetailPage() {
                 <span className="font-heading font-extrabold text-lg text-primary-900">{RS}{fmt(total)}</span>
               </div>
             </div>
-            {/* Payment method chip */}
-            <div className="mt-4 flex items-center justify-between bg-gray-50 rounded-xl px-4 py-2.5">
-              <span className="text-xs text-gray-500 font-semibold">Payment</span>
-              <span className="text-xs font-extrabold text-gray-800">
-                {order.paymentMethod === 'COD' ? '💵 Cash on Delivery' : '💳 Online Payment'}
-              </span>
-            </div>
-            {/* Payment status chip */}
-            {order.paymentStatus && (
-              <div className={'mt-2 flex items-center justify-between rounded-xl px-4 py-2.5 ' + (
-                order.paymentStatus === 'PAID'
-                  ? 'bg-green-50'
-                  : order.paymentStatus === 'PENDING' ? 'bg-amber-50' : 'bg-red-50'
-              )}>
-                <span className="text-xs text-gray-500 font-semibold">Payment Status</span>
-                <span className={'text-xs font-extrabold ' + (
-                  order.paymentStatus === 'PAID'
-                    ? 'text-green-700'
-                    : order.paymentStatus === 'PENDING' ? 'text-amber-700' : 'text-red-700'
-                )}>
-                  {order.paymentStatus}
-                </span>
-              </div>
+
+            {/* Divider */}
+            <div className="border-t border-gray-100 my-4" />
+
+            {/* Payment method + status block */}
+            {(() => {
+              const isCOD  = order.paymentMethod === 'COD';
+              const method = order.paymentMethod?.toLowerCase();
+              const pmMeta = isCOD
+                ? PAYMENT_METHOD_META.cod
+                : (PAYMENT_METHOD_META[method] || { label: order.paymentMethod || 'Online', emoji: '💳', color: 'text-blue-700', bg: 'bg-blue-50', border: 'border-blue-200' });
+              const psMeta = PAYMENT_STATUS_META[order.paymentStatus] || PAYMENT_STATUS_META.PENDING;
+
+              return (
+                <div className="space-y-2.5">
+                  {/* Method pill */}
+                  <div className={`flex items-center justify-between rounded-xl px-4 py-3 border ${pmMeta.bg} ${pmMeta.border}`}>
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">{pmMeta.emoji}</span>
+                      <div>
+                        <p className="text-[10px] text-gray-500 font-semibold uppercase tracking-wide">Payment Method</p>
+                        <p className={`text-sm font-extrabold ${pmMeta.color}`}>{pmMeta.label}</p>
+                      </div>
+                    </div>
+                    {/* Payment status badge */}
+                    <span className={`inline-flex items-center gap-1.5 text-[10px] font-extrabold px-2.5 py-1 rounded-full border ${psMeta.cls}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${psMeta.dot}`} />
+                      {psMeta.label}
+                    </span>
+                  </div>
+
+                  {/* Razorpay payment ID — only for online paid orders */}
+                  {!isCOD && order.paymentId && (
+                    <div className="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-2.5 border border-gray-100">
+                      <div className="flex items-center gap-1.5">
+                        <ShieldCheck className="w-3.5 h-3.5 text-green-600 flex-shrink-0" />
+                        <div>
+                          <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wide">Payment ID</p>
+                          <p className="text-[11px] font-mono font-bold text-gray-700 mt-0.5">{order.paymentId}</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => { navigator.clipboard.writeText(order.paymentId); toast.success('Copied!'); }}
+                        className="w-7 h-7 rounded-lg bg-white border border-gray-200 flex items-center justify-center hover:bg-gray-100 transition-colors"
+                        title="Copy Payment ID"
+                      >
+                        <Copy className="w-3 h-3 text-gray-400" />
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Razorpay order ID for pending / unpaid */}
+                  {!isCOD && !order.paymentId && order.razorpayOrderId && (
+                    <div className="flex items-center justify-between bg-amber-50 rounded-xl px-4 py-2.5 border border-amber-100">
+                      <div>
+                        <p className="text-[10px] text-amber-600 font-semibold uppercase tracking-wide">Awaiting Payment</p>
+                        <p className="text-[11px] font-mono font-bold text-amber-700 mt-0.5">{order.razorpayOrderId}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* Refunds section */}
+            {orderRefunds.length > 0 && (
+              <>
+                <div className="border-t border-gray-100 my-4" />
+                <div className="space-y-2">
+                  <p className="text-[10px] font-extrabold text-purple-700 uppercase tracking-wider flex items-center gap-1.5">
+                    <RotateCcw className="w-3 h-3" /> Refunds
+                  </p>
+                  {orderRefunds.map(rf => (
+                    <div key={rf.id} className={`rounded-xl px-4 py-3 border space-y-1 ${
+                      rf.status === 'PROCESSED' ? 'bg-purple-50 border-purple-200'
+                      : rf.status === 'FAILED'  ? 'bg-red-50 border-red-200'
+                      : 'bg-amber-50 border-amber-200'
+                    }`}>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <RotateCcw className={`w-3.5 h-3.5 flex-shrink-0 ${
+                            rf.status === 'PROCESSED' ? 'text-purple-600'
+                            : rf.status === 'FAILED'  ? 'text-red-500'
+                            : 'text-amber-600'
+                          }`} />
+                          <span className="text-sm font-extrabold text-gray-900">{RS}{fmt(rf.amount)}</span>
+                        </div>
+                        <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${
+                          rf.status === 'PROCESSED' ? 'bg-green-50 text-green-700 border-green-200'
+                          : rf.status === 'FAILED'  ? 'bg-red-100 text-red-700 border-red-200'
+                          : 'bg-amber-100 text-amber-700 border-amber-200'
+                        }`}>{rf.status}</span>
+                      </div>
+                      {rf.reason && (
+                        <p className="text-xs text-gray-500 pl-5">{rf.reason}</p>
+                      )}
+                      {rf.status === 'PENDING' && (
+                        <p className="text-[11px] text-amber-700 font-semibold pl-5">
+                          ⏳ Refund in process · reflects in your bank in 5–7 business days
+                        </p>
+                      )}
+                      {rf.status === 'PROCESSED' && (
+                        <p className="text-[11px] text-purple-700 font-semibold pl-5">
+                          ✓ Refund successfully processed to your original payment method
+                        </p>
+                      )}
+                      <p className="text-[10px] text-gray-400 pl-5">
+                        {new Date(rf.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </>
             )}
+
+            {/* Need help CTA */}
+            <div className="mt-4 flex items-center gap-2 bg-gray-50 border border-gray-100 rounded-xl px-4 py-3">
+              <MessageCircle className="w-4 h-4 text-green-600 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-bold text-gray-700">Payment issue?</p>
+                <p className="text-[11px] text-gray-400">Contact us and mention your order number</p>
+              </div>
+              <a
+                href={`https://wa.me/9440658294?text=Hi, I have a payment query for order %23${order?.orderNumber}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-shrink-0 text-[11px] font-extrabold text-green-700 hover:underline"
+              >
+                WhatsApp
+              </a>
+            </div>
           </SectionCard>
 
           {/* Delivery Address */}

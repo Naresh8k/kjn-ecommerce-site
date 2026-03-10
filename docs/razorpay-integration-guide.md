@@ -1,0 +1,826 @@
+# Razorpay Payment Gateway — Complete Integration Guide
+### KJN Shop · Business Payment Gateway Documentation
+
+---
+
+## Table of Contents
+
+1. [Overview](#1-overview)
+2. [Razorpay Account Setup — Step-by-Step](#2-razorpay-account-setup--step-by-step)
+3. [API Keys & Credentials](#3-api-keys--credentials)
+4. [Webhook Configuration on Razorpay Side](#4-webhook-configuration-on-razorpay-side)
+5. [Razorpay Dashboard Settings to Enable](#5-razorpay-dashboard-settings-to-enable)
+6. [Payment Methods to Activate](#6-payment-methods-to-activate)
+7. [Settlement Account Setup](#7-settlement-account-setup)
+8. [What Is Implemented in KJN Shop](#8-what-is-implemented-in-kjn-shop)
+9. [Backend API Reference](#9-backend-api-reference)
+10. [Database Schema (Refund Model)](#10-database-schema-refund-model)
+11. [Admin Panel — Payments Module](#11-admin-panel--payments-module)
+12. [Environment Variables Reference](#12-environment-variables-reference)
+13. [Payment Flow — End to End](#13-payment-flow--end-to-end)
+14. [Refund Flow — End to End](#14-refund-flow--end-to-end)
+15. [Webhook Events Handled](#15-webhook-events-handled)
+16. [Going Live — Production Checklist](#16-going-live--production-checklist)
+17. [Troubleshooting](#17-troubleshooting)
+
+---
+
+## 1. Overview
+
+KJN Shop uses **Razorpay** as its online payment gateway. Razorpay processes all prepaid orders — UPI, Credit/Debit Cards, Net Banking, Wallets, and EMI. The integration covers:
+
+| Area | Status |
+|---|---|
+| Order creation (Razorpay Order ID) | ? Implemented |
+| Checkout payment via Razorpay Checkout SDK | ? Implemented |
+| Signature verification (HMAC-SHA256) | ? Implemented |
+| Webhook event processing | ? Implemented |
+| Full & partial refunds (admin initiated) | ? Implemented |
+| Live payments list from Razorpay API | ? Implemented |
+| Settlements reporting | ? Implemented |
+| Disputes reporting | ? Implemented |
+| Admin payments module (5-tab panel) | ? Implemented |
+| Customer email + in-app notifications | ? Implemented |
+
+---
+
+## 2. Razorpay Account Setup — Step-by-Step
+
+### 2.1 Create a Razorpay Business Account
+
+1. Go to **https://razorpay.com** and click **Sign Up**.
+2. Enter your business email and mobile number.
+3. Verify your mobile number via OTP.
+4. Select **Business Type**: choose the correct type for KJN Shop  
+   - If registered: **Private Limited / LLP / Partnership / Proprietorship**  
+   - If not registered yet: **Individual** (limited features, upgrade later)
+5. Enter your **Business Name**: `KJN Shop` (or your legal entity name).
+6. Set a strong password and complete registration.
+
+### 2.2 Complete KYC Verification
+
+KYC must be completed to go live and receive settlements.
+
+Navigate to: **Dashboard ? My Account ? Business Profile ? Complete Activation**
+
+You will need to submit:
+
+| Document | Details |
+|---|---|
+| **Business PAN Card** | Company PAN (if registered) or Individual PAN |
+| **GST Certificate** | If GST registered (recommended for e-commerce) |
+| **Business Address Proof** | Utility bill, rent agreement, or bank statement |
+| **Bank Account Details** | Account number + IFSC for settlements |
+| **Cancelled Cheque / Bank Passbook** | To verify bank account |
+| **Business Website URL** | `https://shopatkjn.com` (must be live with T&C, Privacy Policy, Refund Policy pages) |
+| **Director/Owner Aadhaar** | For Proprietorship / Individual accounts |
+
+> **Note:** KYC approval typically takes **1–3 business days**. You can test in Test Mode without KYC.
+
+### 2.3 Set Business Details
+
+Go to **Dashboard ? My Account ? Business Profile**:
+
+- **Business Category**: `E-commerce`
+- **Business Sub-Category**: `Retail Shopping`  
+- **Support Email**: `support@shopatkjn.com`
+- **Support Phone**: Your customer support number
+- **Website**: `https://shopatkjn.com`
+- **Privacy Policy URL**: `https://shopatkjn.com/privacy-policy`
+- **Terms & Conditions URL**: `https://shopatkjn.com/terms`
+- **Refund Policy URL**: `https://shopatkjn.com/refund-policy`
+
+> Razorpay **requires** these policy pages to be live before approving your account for production.
+
+---
+
+## 3. API Keys & Credentials
+
+### 3.1 Get API Keys
+
+1. Go to **Razorpay Dashboard ? Settings ? API Keys**.
+2. Click **Generate Key** (or **Regenerate Key** if keys already exist).
+3. You will receive:
+   - **Key ID** — starts with `rzp_test_` (Test) or `rzp_live_` (Production)
+   - **Key Secret** — shown only once, copy it immediately
+
+### 3.2 Test Mode vs Live Mode
+
+| Mode | Key Prefix | Purpose |
+|---|---|---|
+| Test Mode | `rzp_test_XXXXXXXX` | Development & testing, no real money moves |
+| Live Mode | `rzp_live_XXXXXXXX` | Production, real transactions |
+
+> Toggle between modes using the **Test / Live switch** in the top-right of the Razorpay Dashboard.
+
+### 3.3 Add Keys to .env
+
+```env
+RAZORPAY_KEY_ID=rzp_live_XXXXXXXXXXXXXXXX
+RAZORPAY_KEY_SECRET=XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+RAZORPAY_WEBHOOK_SECRET=your_webhook_secret_string
+```
+
+> ?? **Never commit `.env` to Git.** The `.env` file is in `.gitignore`.
+
+---
+
+## 4. Webhook Configuration on Razorpay Side
+
+Webhooks allow Razorpay to push real-time payment event notifications to your backend. This is critical — it ensures payments are confirmed even if the customer closes the browser before the frontend verify call completes.
+
+### 4.1 Add Webhook URL
+
+1. Go to **Razorpay Dashboard ? Settings ? Webhooks**.
+2. Click **Add New Webhook**.
+3. Enter the **Webhook URL**:
+   ```
+   https://api.shopatkjn.com/api/payments/webhook
+   ```
+   > Replace with your actual backend domain. For local testing, use [ngrok](https://ngrok.com).
+4. Enter a **Secret** — this is your `RAZORPAY_WEBHOOK_SECRET`. Use a long random string, e.g.:
+   ```
+   kjn_webhook_secret_2024_abc123xyz789
+   ```
+5. Set **Alert Email**: your admin email for webhook failure alerts.
+
+### 4.2 Select Webhook Events to Subscribe
+
+Check **all** of the following events:
+
+| Event | Why It's Needed |
+|---|---|
+| `payment.captured` | Confirms payment success (backup to frontend verify) |
+| `payment.failed` | Marks order as FAILED/CANCELLED if payment fails |
+| `payment.authorized` | For two-step payment capture (if applicable) |
+| `refund.processed` | Updates refund status to PROCESSED in DB |
+| `refund.failed` | Updates refund status to FAILED in DB |
+| `refund.created` | Optional — for tracking refund initiation |
+| `order.paid` | Alternative payment confirmation event |
+| `dispute.created` | Notifies when a chargeback/dispute is raised |
+| `dispute.won` | When dispute is resolved in your favour |
+| `dispute.lost` | When dispute is resolved against you |
+| `settlement.processed` | When Razorpay settles funds to your bank |
+
+6. Click **Create Webhook**.
+
+### 4.3 How Webhook Signature Verification Works (Already Implemented)
+
+The backend verifies every webhook using HMAC-SHA256:
+
+```javascript
+// backend/src/modules/payments/payment.controller.js
+const expectedSig = crypto
+  .createHmac('sha256', process.env.RAZORPAY_WEBHOOK_SECRET)
+  .update(rawBody)  // raw Buffer, NOT parsed JSON
+  .digest('hex');
+
+if (expectedSig !== signature) {
+  console.warn('[Razorpay Webhook] Invalid signature — ignoring');
+  return;
+}
+```
+
+> The webhook route uses `express.raw({ type: 'application/json' })` middleware to preserve the raw body for signature verification. This is already configured correctly.
+
+### 4.4 Test Your Webhook
+
+In the Razorpay Dashboard webhook list, click **Send Test Event** next to your webhook to verify connectivity.
+
+---
+
+## 5. Razorpay Dashboard Settings to Enable
+
+### 5.1 Settings ? Checkout
+
+Go to **Settings ? Checkout**:
+
+| Setting | Recommended Value |
+|---|---|
+| **Business Name on Checkout** | `KJN Shop` |
+| **Business Logo** | Upload your KJN logo (200×200px, PNG) |
+| **Checkout Theme Color** | `#0f172a` (matches your primary brand color) |
+| **Checkout Language** | English (or Hindi if your customers prefer) |
+| **Prefill Customer Details** | Enable — auto-fills name, email, phone from order |
+| **Remember Customer** | Enable — saves card for returning customers |
+| **Display Currency** | `INR` |
+| **Checkout Timeout** | `120` seconds (2 minutes) |
+
+### 5.2 Settings ? Payment Capture
+
+Go to **Settings ? Payment Capture**:
+
+- Set to **Automatic Capture** — Razorpay captures payment immediately after authorization.
+- Do **NOT** use Manual Capture unless you have a specific reason (requires additional implementation).
+
+### 5.3 Settings ? Refund Speed
+
+Go to **Settings ? Refunds**:
+
+- **Refund Speed**: Set to `Normal` (2–5 business days) by default.  
+  The code uses `speed: 'normal'` which means Razorpay processes at standard speed.
+- `Optimum` (instant, higher fees) can be used for VIP customers — change `speed` in `payment.controller.js` if needed.
+
+---
+
+## 6. Payment Methods to Activate
+
+Go to **Dashboard ? Payment Methods** and enable the following:
+
+### 6.1 UPI (Highest Priority — Most Used in India)
+
+| Sub-method | Enable |
+|---|---|
+| UPI (all apps — GPay, PhonePe, Paytm, etc.) | ? Yes |
+| UPI Intent (redirect to UPI app) | ? Yes |
+| UPI Collect (enter UPI ID) | ? Yes |
+| UPI QR Code | ? Yes |
+
+### 6.2 Cards
+
+| Sub-method | Enable |
+|---|---|
+| Visa | ? Yes |
+| Mastercard | ? Yes |
+| RuPay | ? Yes |
+| American Express | Optional |
+| International Cards | Optional (enable only if serving international customers) |
+| Saved Cards (PCI-DSS tokenization) | ? Yes — Razorpay handles compliance |
+
+### 6.3 Net Banking
+
+Enable all major Indian banks. Minimum to enable:
+
+- HDFC Bank
+- ICICI Bank  
+- State Bank of India (SBI)
+- Axis Bank
+- Kotak Mahindra Bank
+- Yes Bank
+- Punjab National Bank
+- Bank of Baroda
+- Canara Bank
+- Union Bank of India
+
+### 6.4 Wallets
+
+| Wallet | Enable |
+|---|---|
+| Paytm | ? Yes |
+| PhonePe | ? Yes |
+| Amazon Pay | ? Yes |
+| Mobikwik | Optional |
+| Freecharge | Optional |
+
+### 6.5 EMI
+
+| Type | Enable |
+|---|---|
+| Credit Card EMI (No Cost EMI) | ? Yes (increases conversions for high-value orders) |
+| Debit Card EMI | Optional |
+| Cardless EMI (Bajaj Finserv, ZestMoney) | Optional |
+
+> Enable No Cost EMI — the interest cost is typically borne by the merchant (you absorb it or add it to price). Great for orders above ?3,000.
+
+### 6.6 Buy Now Pay Later (BNPL)
+
+| Provider | Enable |
+|---|---|
+| LazyPay | Optional |
+| Simpl | Optional |
+| ZestMoney | Optional |
+
+---
+
+## 7. Settlement Account Setup
+
+### 7.1 Add Bank Account for Settlements
+
+Go to **Dashboard ? My Account ? Settlement Accounts**:
+
+1. Click **Add Bank Account**.
+2. Enter:
+   - **Account Holder Name**: exactly as in bank records
+   - **Account Number**: your business bank account
+   - **IFSC Code**: 11-character IFSC
+   - **Account Type**: Current (recommended for business)
+3. Upload a **cancelled cheque** or bank passbook copy.
+4. Razorpay will do a penny-drop verification (sends ?1 to verify account).
+
+### 7.2 Settlement Cycle
+
+| Setting | Default | Notes |
+|---|---|---|
+| **Settlement Cycle** | T+2 (2 business days) | Standard for most accounts |
+| **Early Settlement** | T+0 / T+1 | Available for high-volume accounts (contact Razorpay support) |
+| **Settlement Currency** | INR | Default |
+
+You can view all settlements in:
+- **Razorpay Dashboard ? Settlements**
+- **KJN Admin Panel ? Payments ? Settlements tab** (pulls from Razorpay API)
+
+---
+
+## 8. What Is Implemented in KJN Shop
+
+### 8.1 Backend Implementation
+
+**File**: `backend/src/modules/payments/payment.controller.js`
+
+| Function | Description |
+|---|---|
+| `createPaymentOrder` | Creates a Razorpay Order ID before checkout. Amount in paise (×100). Stores `razorpayOrderId` in DB. |
+| `verifyPayment` | Verifies HMAC-SHA256 signature after frontend payment. Updates order to PAID + CONFIRMED. Sends confirmation email + notification. |
+| `handleWebhook` | Processes 4 events: `payment.captured`, `payment.failed`, `refund.processed`, `refund.failed`. Always ACKs with 200 first, then processes. |
+| `initiateRefund` | Admin-only. Calls `razorpay.payments.refund()`. Creates `Refund` record in DB. Updates order payment status. Sends email + notification. |
+| `getRefunds` | Paginated list of refunds from local DB. Supports status filter. |
+| `getPaymentDetails` | Fetches a single payment from Razorpay API by payment ID. |
+| `getPaymentsList` | Fetches payment list from Razorpay API. Enriches with local KJN order data. |
+| `getPaymentSummary` | DB-aggregated stats: total collected, refunded, COD, online, failed, pending refunds, recent 5 payments. |
+| `getSettlements` | Fetches settlements from Razorpay API. Gracefully returns empty for test accounts. |
+| `getDisputes` | Fetches disputes from Razorpay API. Gracefully returns empty if no disputes. |
+
+**File**: `backend/src/modules/payments/payment.routes.js`
+
+| Method | Route | Auth | Description |
+|---|---|---|---|
+| `POST` | `/api/payments/webhook` | None (raw body) | Razorpay webhook handler |
+| `POST` | `/api/payments/create-order` | Customer JWT | Create Razorpay Order |
+| `POST` | `/api/payments/verify` | Customer JWT | Verify payment signature |
+| `POST` | `/api/payments/refund` | Admin JWT | Initiate refund |
+| `GET` | `/api/payments/refunds` | Admin JWT | List refunds from DB |
+| `GET` | `/api/payments/summary` | Admin JWT | Payment KPI stats |
+| `GET` | `/api/payments/list` | Admin JWT | Live payments from Razorpay |
+| `GET` | `/api/payments/settlements` | Admin JWT | Settlements from Razorpay |
+| `GET` | `/api/payments/disputes` | Admin JWT | Disputes from Razorpay |
+| `GET` | `/api/payments/details/:paymentId` | Admin JWT | Single payment detail |
+
+### 8.2 Signature Verification (Security)
+
+Two types of signature verification are implemented:
+
+**1. Payment Verification (Frontend ? Backend)**
+```
+HMAC-SHA256( razorpay_order_id + "|" + razorpay_payment_id, RAZORPAY_KEY_SECRET )
+```
+This proves the payment was genuinely made on Razorpay for this order.
+
+**2. Webhook Verification (Razorpay ? Backend)**
+```
+HMAC-SHA256( raw_request_body, RAZORPAY_WEBHOOK_SECRET )
+```
+This proves the webhook came from Razorpay and was not tampered with.
+
+### 8.3 Order & Payment Fields in Database
+
+**Order model fields used by Razorpay**:
+
+| Field | Type | Purpose |
+|---|---|---|
+| `razorpayOrderId` | `String?` | Razorpay Order ID (`order_XXXXXXXX`) — set at checkout initiation |
+| `paymentId` | `String?` | Razorpay Payment ID (`pay_XXXXXXXX`) — set after successful payment |
+| `paymentMethod` | `String?` | `ONLINE`, `COD`, `UPI`, etc. |
+| `paymentStatus` | `PaymentStatus` | `PENDING`, `PAID`, `FAILED`, `REFUNDED`, `PARTIAL_REFUND` |
+
+### 8.4 Notification Types Sent
+
+| Event | Notification Type | Message |
+|---|---|---|
+| Payment success | `PAYMENT_SUCCESS` | "Payment of Rs.X received for order #Y" |
+| Refund initiated | `REFUND_INITIATED` | "Refund of Rs.X initiated, reflects in 5–7 days" |
+| Refund processed (webhook) | `REFUND_PROCESSED` | "Refund of Rs.X for order #Y has been processed" |
+
+---
+
+## 9. Backend API Reference
+
+### POST `/api/payments/create-order`
+
+**Auth**: Customer JWT  
+**Body**:
+```json
+{ "orderId": "uuid-of-kjn-order" }
+```
+**Response**:
+```json
+{
+  "success": true,
+  "data": {
+    "razorpayOrderId": "order_XXXXXXXXXXXXXXXX",
+    "amount": 49900,
+    "currency": "INR",
+    "orderNumber": "KJN123456",
+    "key": "rzp_live_XXXXXXXXXXXXXXXX"
+  }
+}
+```
+
+### POST `/api/payments/verify`
+
+**Auth**: Customer JWT  
+**Body**:
+```json
+{
+  "razorpay_order_id": "order_XXXXXXXXXXXXXXXX",
+  "razorpay_payment_id": "pay_XXXXXXXXXXXXXXXX",
+  "razorpay_signature": "hmac_hex_string",
+  "orderId": "uuid-of-kjn-order"
+}
+```
+
+### POST `/api/payments/refund`
+
+**Auth**: Admin JWT  
+**Body**:
+```json
+{
+  "orderId": "uuid-of-kjn-order",
+  "amount": 250.00,
+  "reason": "Customer requested cancellation"
+}
+```
+> Omit `amount` for full refund.
+
+### GET `/api/payments/refunds`
+
+**Auth**: Admin JWT  
+**Query params**: `page`, `limit`, `status` (`PENDING` | `PROCESSED` | `FAILED`)
+
+### GET `/api/payments/list`
+
+**Auth**: Admin JWT  
+**Query params**: `count` (max 100), `skip`, `from` (unix timestamp), `to` (unix timestamp)
+
+### GET `/api/payments/summary`
+
+**Auth**: Admin JWT  
+No params. Returns aggregated DB stats.
+
+### GET `/api/payments/settlements`
+
+**Auth**: Admin JWT  
+**Query params**: `count`, `skip`
+
+### GET `/api/payments/disputes`
+
+**Auth**: Admin JWT  
+**Query params**: `count`, `skip`
+
+### GET `/api/payments/details/:paymentId`
+
+**Auth**: Admin JWT  
+**Param**: `paymentId` — Razorpay payment ID (e.g. `pay_XXXXXXXXXXXXXXXX`)
+
+---
+
+## 10. Database Schema (Refund Model)
+
+```prisma
+model Refund {
+  id                String       @id @default(uuid())
+  orderId           String
+  order             Order        @relation(fields: [orderId], references: [id])
+  razorpayRefundId  String?      @unique   // rfnd_XXXXXXXXXXXXXXXX
+  razorpayPaymentId String?               // pay_XXXXXXXXXXXXXXXX
+  amount            Decimal      @db.Decimal(10, 2)
+  reason            String?
+  status            RefundStatus @default(PENDING)
+  initiatedById     String                // Admin user who initiated
+  initiatedBy       User         @relation("RefundInitiatedBy", fields: [initiatedById], references: [id])
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+}
+
+enum RefundStatus {
+  PENDING    // Submitted to Razorpay, awaiting processing
+  PROCESSED  // Razorpay confirmed via webhook (refund.processed)
+  FAILED     // Razorpay failed via webhook (refund.failed)
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED        // Full refund completed
+  PARTIAL_REFUND  // Partial refund completed
+}
+```
+
+---
+
+## 11. Admin Panel — Payments Module
+
+**URL**: `https://shopatkjn.com/admin/payments`  
+**File**: `frontend/app/admin/payments/page.js`  
+**Old URL**: `/admin/refunds` — redirects automatically to `/admin/payments`
+
+The admin Payments Module has **5 tabs**:
+
+### Tab 1: Overview
+
+- **6 KPI Cards**: Total Collected, Online Payments, COD Collected, Total Refunded, Failed Payments, Pending Refunds
+- **Payment Mix Bar**: Visual breakdown of online vs COD orders and amounts
+- **Recent Online Payments**: Last 5 paid orders with customer name and amount
+- **Razorpay Quick Links**: Direct links to Razorpay Dashboard sections
+
+### Tab 2: Payments
+
+- Live payment list fetched from **Razorpay API**
+- Shows: Payment ID (copyable), Contact, Method (UPI/Card/etc.), Amount, Status, Linked KJN Order, Date
+- **Filters**: Search by payment ID / email / order number, Filter by method, Filter by status
+- **Pagination**: 25 per page with next/prev
+- **Click any row**: Opens Payment Detail Drawer showing:
+  - Amount, currency, status badge
+  - Full payment method details (card network, last 4, bank, VPA)
+  - Customer email & phone
+  - Linked KJN order (number + status)
+  - All reference IDs (copyable) + link to Razorpay Dashboard
+  - **"Initiate Refund" button** (only for `captured` payments)
+
+### Tab 3: Refunds
+
+- Refund records from **local database** (DB source of truth)
+- Shows: Order number + status, Customer details, Refund amount, Razorpay Refund ID (copyable), Status badge, Initiated by, Date
+- **4 mini stat cards**: Page total amount, Pending count, Processed count, Failed count
+- **Filters**: Search by order #/customer/refund ID, Status tabs (All/Pending/Processed/Failed)
+- **"New Refund" button**: Opens Initiate Refund modal
+- **Click any row**: Opens Refund Detail Drawer showing:
+  - Status banner with amount
+  - Customer contact info
+  - Razorpay Refund ID + Payment ID (copyable) + Razorpay Dashboard link
+  - Reason text
+  - Admin who initiated + timestamp
+  - **Live payment details** from Razorpay API (fetched on open)
+
+### Tab 4: Settlements
+
+- Settlement records fetched from **Razorpay API**
+- Shows: Settlement ID (copyable), Amount (in ?), UTR reference, Status, Transaction count, Date
+- Direct link to Razorpay Settlements Dashboard
+- Graceful empty state for test accounts (Razorpay doesn't return settlements in test mode)
+- Paginated: 25 per page
+
+### Tab 5: Disputes
+
+- Dispute (chargeback) records from **Razorpay API**
+- **Red alert banner** if there are open disputes requiring action
+- Shows: Dispute ID, Payment ID, Amount, Reason code, Status badge, Phase, Respond-By date (turns red if overdue)
+- Direct link to Razorpay Disputes Dashboard
+- Graceful empty / "No disputes" state
+
+### Initiate Refund Modal (Global)
+
+Accessible from:
+- The global **"Initiate Refund"** button in the page header
+- The **"New Refund"** button in the Refunds tab
+- The **"Initiate Refund for this Payment"** button in the Payment drawer (pre-fills payment details)
+
+Features:
+- Order number search (searches KJN DB)
+- Shows found order card with customer name, amount, order status
+- Full Refund / Partial Refund toggle
+- Partial amount input with max cap validation
+- Reason text area (required)
+- Warning notice: irreversible, 5–7 day bank reflection, customer will be notified
+
+---
+
+## 12. Environment Variables Reference
+
+Add these to `backend/.env`:
+
+```env
+# ?????????????????????????????????????????????
+# RAZORPAY
+# ?????????????????????????????????????????????
+
+# Your Razorpay API Key ID
+# Test:  rzp_test_XXXXXXXXXXXXXXXX
+# Live:  rzp_live_XXXXXXXXXXXXXXXX
+RAZORPAY_KEY_ID=rzp_live_XXXXXXXXXXXXXXXX
+
+# Your Razorpay API Key Secret (shown only once — copy immediately)
+RAZORPAY_KEY_SECRET=XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+
+# Your Webhook Secret (the string you entered in Razorpay Dashboard ? Webhooks)
+RAZORPAY_WEBHOOK_SECRET=your_unique_webhook_secret_string
+```
+
+> The `RAZORPAY_KEY_ID` is also sent to the frontend at checkout time (via `GET /api/payments/create-order`) so the Razorpay Checkout SDK can be initialized. **The Key Secret must never be sent to the frontend.**
+
+---
+
+## 13. Payment Flow — End to End
+
+```
+Customer                    KJN Frontend                  KJN Backend              Razorpay
+    |                            |                              |                       |
+    |-- Clicks "Pay Online" ---->|                              |                       |
+    |                            |-- POST /payments/create-order (orderId) ----------->|
+    |                            |                              |-- razorpay.orders.create() -->|
+    |                            |                              |<-- { order_id, amount }       |
+    |                            |<-- { razorpayOrderId, key, amount } ------------------|
+    |                            |                              |                       |
+    |                            |-- Opens Razorpay Checkout SDK                        |
+    |<--- Razorpay payment modal shown (UPI / Card / etc.) ----------------------------|
+    |                            |                              |                       |
+    |-- Completes payment ------>|                              |                       |
+    |                            |<-- { payment_id, order_id, signature } -------------|
+    |                            |                              |                       |
+    |                            |-- POST /payments/verify ----------------------->|
+    |                            |                              |-- Verify HMAC-SHA256  |
+    |                            |                              |-- Update DB: PAID, CONFIRMED
+    |                            |                              |-- Send confirmation email
+    |                            |                              |-- Create notification
+    |                            |<-- { success: true, orderNumber } ---------------|
+    |<-- Redirected to order success page -------|              |                   |
+    |                            |                              |                   |
+    |                            |              Razorpay sends webhook (payment.captured)
+    |                            |                              |<-- { event: payment.captured }
+    |                            |                              |-- (Re-verify as backup, idempotent)
+```
+
+---
+
+## 14. Refund Flow — End to End
+
+```
+Admin                    KJN Admin Panel               KJN Backend              Razorpay
+  |                            |                             |                      |
+  |-- Opens Payments tab ----->|                             |                      |
+  |-- Searches order / clicks  |                             |                      |
+  |   "Initiate Refund" ------>|                             |                      |
+  |-- Enters reason, selects   |                             |                      |
+  |   full/partial, submits -->|                             |                      |
+  |                            |-- POST /payments/refund (orderId, amount, reason) >|
+  |                            |                             |-- Fetch order from DB |
+  |                            |                             |-- Validate paymentId  |
+  |                            |                             |-- razorpay.payments.refund() -->|
+  |                            |                             |<-- { refund_id, status } -------|
+  |                            |                             |-- Create Refund record in DB    |
+  |                            |                             |-- Update Order.paymentStatus    |
+  |                            |                             |-- Create customer notification  |
+  |                            |                             |-- Send refund email             |
+  |                            |<-- { success, refundId, razorpayRefundId } -------->|
+  |<-- Toast: "Refund initiated!" ----|                      |                      |
+  |                            |                             |                      |
+  |               (2–5 business days later)                  |                      |
+  |                            |          Razorpay sends webhook (refund.processed) |
+  |                            |                             |<-- { event: refund.processed } |
+  |                            |                             |-- Update Refund.status = PROCESSED
+  |                            |                             |-- Update Order.paymentStatus = REFUNDED
+  |                            |                             |-- Send processed email to customer
+  |                            |                             |-- Create customer notification
+```
+
+---
+
+## 15. Webhook Events Handled
+
+| Event | Handler Action |
+|---|---|
+| `payment.captured` | Finds order by `razorpayOrderId`. If not already PAID, sets `paymentStatus: PAID`, `status: CONFIRMED`. Creates notification. |
+| `payment.failed` | Finds order by `razorpayOrderId`. Sets `paymentStatus: FAILED`, `status: CANCELLED`. |
+| `refund.processed` | Finds order by `paymentId`. Updates order `paymentStatus` to `REFUNDED` or `PARTIAL_REFUND`. Updates `Refund.status` to `PROCESSED`. Creates notification. Sends refund email. |
+| `refund.failed` | Finds `Refund` by `razorpayRefundId`. Updates status to `FAILED`. |
+
+> All webhooks are ACK'd immediately with `res.status(200).json({ received: true })` before async processing. This prevents Razorpay from retrying due to timeout.
+
+---
+
+## 16. Going Live — Production Checklist
+
+Complete all items before switching from Test to Live mode:
+
+### Razorpay Account
+- [ ] KYC documents submitted and approved
+- [ ] Bank account added and verified (penny drop)
+- [ ] Business website live with required policy pages:
+  - [ ] Privacy Policy at `/privacy-policy`
+  - [ ] Terms & Conditions at `/terms`
+  - [ ] Refund & Cancellation Policy at `/refund-policy`
+  - [ ] Shipping Policy at `/shipping-policy`
+- [ ] Business profile completed (category, contact, logo)
+- [ ] Checkout branding configured (logo, theme color)
+
+### Payment Methods
+- [ ] UPI enabled (all variants)
+- [ ] Cards enabled (Visa, MC, RuPay)
+- [ ] Net Banking enabled (major banks)
+- [ ] At least one wallet enabled
+
+### API & Webhook
+- [ ] Switched to **Live Mode** in Razorpay Dashboard
+- [ ] Live API keys copied to production `.env`:
+  - [ ] `RAZORPAY_KEY_ID` = `rzp_live_...`
+  - [ ] `RAZORPAY_KEY_SECRET` = live secret
+  - [ ] `RAZORPAY_WEBHOOK_SECRET` = same as Dashboard
+- [ ] Webhook URL pointing to **production** backend domain
+- [ ] Webhook events all selected (see Section 4.2)
+- [ ] Webhook test event sent and received successfully
+
+### Backend
+- [ ] Backend deployed to production server
+- [ ] `NODE_ENV=production` in `.env`
+- [ ] HTTPS enabled on backend domain
+- [ ] Webhook endpoint accessible: `POST https://api.shopatkjn.com/api/payments/webhook`
+
+### Frontend
+- [ ] Razorpay Checkout SDK loads over HTTPS
+- [ ] Payment success redirects to correct URL
+- [ ] Payment failure shows clear error message to user
+
+### Testing in Live Mode (Before Launch)
+- [ ] Make a real ?1 test payment using a live card
+- [ ] Verify order marked as PAID in KJN admin
+- [ ] Verify confirmation email received
+- [ ] Initiate a ?1 refund from admin panel
+- [ ] Verify refund shows in Razorpay Dashboard
+- [ ] Verify refund email received by customer
+
+---
+
+## 17. Troubleshooting
+
+### Payment Verification Fails (Signature Mismatch)
+
+**Cause**: `RAZORPAY_KEY_SECRET` in `.env` is wrong, or using Test key in Live mode (or vice versa).
+
+**Fix**: Ensure `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET` are from the **same mode** (both test or both live). Regenerate keys if needed.
+
+---
+
+### Webhook Signature Fails
+
+**Cause**: `RAZORPAY_WEBHOOK_SECRET` in `.env` doesn't match what was entered in the Razorpay Dashboard webhook settings, OR the webhook request body is being parsed as JSON before HMAC verification.
+
+**Fix**:
+1. Confirm the secret string matches exactly in both places.
+2. Ensure the webhook route uses `express.raw()` middleware (already done).
+3. Ensure no other global middleware (`express.json()`) processes the webhook route before the raw middleware.
+
+---
+
+### Settlements Tab Shows Empty
+
+**Cause**: Test mode accounts don't have real settlements.
+
+**Fix**: This is expected behaviour. The backend returns empty gracefully. It will populate after switching to Live mode and receiving actual settlements (T+2 from first live payment).
+
+---
+
+### Disputes Tab Shows Empty
+
+**Cause**: No disputes exist (good!) or Razorpay Node SDK version doesn't expose `razorpay.disputes`.
+
+**Fix**: If no disputes, this is correct. If you expect disputes, check SDK version:
+```bash
+cd backend && npm list razorpay
+```
+Update to `razorpay@^2.9.0` or later:
+```bash
+npm install razorpay@latest
+```
+
+---
+
+### Refund Fails with "Payment Already Refunded"
+
+**Cause**: Either the full amount was already refunded on Razorpay, or the DB `paymentStatus` is already `REFUNDED`.
+
+**Fix**: Check the order in Razorpay Dashboard. Check `Order.paymentStatus` in DB. The refund endpoint validates this before calling Razorpay.
+
+---
+
+### COD Orders Cannot Be Refunded via This Module
+
+**By design**: The refund flow requires a Razorpay `paymentId`. COD orders have no online payment, so they cannot be refunded through Razorpay. COD refunds must be processed manually (bank transfer, cash, store credit, etc.).
+
+The admin modal explicitly blocks COD orders from the refund flow.
+
+---
+
+### Live Payments Tab Shows "No payments found"
+
+**Cause**: API keys might be Test mode keys even in production, or the Razorpay account has no payments yet.
+
+**Fix**: Verify `RAZORPAY_KEY_ID` starts with `rzp_live_` in production `.env`. Make a live payment to populate data.
+
+---
+
+## Appendix: Razorpay Support & Resources
+
+| Resource | URL |
+|---|---|
+| Razorpay Dashboard | https://dashboard.razorpay.com |
+| API Documentation | https://razorpay.com/docs/api |
+| Webhook Documentation | https://razorpay.com/docs/webhooks |
+| Node.js SDK | https://github.com/razorpay/razorpay-node |
+| Razorpay Support | https://razorpay.com/support |
+| Status Page | https://status.razorpay.com |
+| Test Cards | https://razorpay.com/docs/payments/payments/test-card-details |
+| Test UPI IDs | `success@razorpay` (success), `failure@razorpay` (failure) |
+
+---
+
+*Last updated: June 2025 · KJN Shop Razorpay Integration v2.0*
