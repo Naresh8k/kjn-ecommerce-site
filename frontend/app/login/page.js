@@ -390,9 +390,9 @@ export default function LoginPage() {
 
           <p className="text-center text-xs text-gray-400 mt-4">
             By continuing, you agree to our{' '}
-            <Link href="/terms" className="underline hover:text-gray-600">Terms</Link>
+            <Link href="/tos" className="underline hover:text-gray-600">Terms</Link>
             {' '}and{' '}
-            <Link href="/privacy" className="underline hover:text-gray-600">Privacy Policy</Link>
+            <Link href="/privacy-policy" className="underline hover:text-gray-600">Privacy Policy</Link>
           </p>
         </div>
       </div>

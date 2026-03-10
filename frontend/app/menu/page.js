@@ -21,11 +21,14 @@ export default function MenuPage() {
     { label: 'About Us', href: '/about-us' },
     { label: 'Blog', href: '/blog' },
     { label: 'Contact Us', href: '/contact-us' },
-    // { label: 'Payment Policy', href: '/payment-policy' },
-    // { label: 'Privacy Policy', href: '/privacy-policy' },
-    // { label: 'Return & Refund', href: '/refund-policy' },
-    // { label: 'Shipping Policy', href: '/shipping-policy' },
-    // { label: 'Terms & Conditions', href: '/tos' },
+  ];
+
+  const policyLinks = [
+    { label: 'Terms & Conditions', href: '/tos' },
+    { label: 'Privacy Policy', href: '/privacy-policy' },
+    { label: 'Return & Refund Policy', href: '/refund-policy' },
+    { label: 'Shipping Policy', href: '/shipping-policy' },
+    { label: 'Payment Policy', href: '/payment-policy' },
   ];
 
   return (
@@ -51,13 +54,27 @@ export default function MenuPage() {
       </section>
 
       <section>
-        {/* <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>Quick Links</h2> */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {quickLinks.map((link) => (
             <Link key={link.href} href={link.href} style={{
               padding: '10px 14px', borderRadius: 8, background: 'white',
               boxShadow: '0 1px 4px rgba(0,0,0,0.05)', color: '#374151',
               textDecoration: 'none', fontWeight: 600,
+            }}>
+              {link.label}
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      <section style={{ marginTop: 32 }}>
+        <p style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#9CA3AF', marginBottom: 8, paddingLeft: 2 }}>Policies</p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {policyLinks.map((link) => (
+            <Link key={link.href} href={link.href} style={{
+              padding: '10px 14px', borderRadius: 8, background: 'white',
+              boxShadow: '0 1px 4px rgba(0,0,0,0.05)', color: '#6B7280',
+              textDecoration: 'none', fontWeight: 600, fontSize: 14,
             }}>
               {link.label}
             </Link>

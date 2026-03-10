@@ -50,6 +50,21 @@ const normaliseBannerPayload = (body) => {
   } else {
     payload.endsAt = null;
   }
+
+  // Popup-specific fields — coerce types
+  if (payload.overlayOpacity !== undefined) {
+    const v = parseFloat(payload.overlayOpacity);
+    payload.overlayOpacity = isNaN(v) ? null : Math.min(1, Math.max(0, v));
+  }
+  if (payload.popupDelay !== undefined) {
+    const v = parseInt(payload.popupDelay);
+    payload.popupDelay = isNaN(v) ? 1 : Math.max(0, v);
+  }
+  // Convert empty strings to null for optional string fields
+  ['subtitle', 'buttonText', 'bgColor', 'textColor'].forEach(k => {
+    if (payload[k] === '') payload[k] = null;
+  });
+
   return payload;
 };
 

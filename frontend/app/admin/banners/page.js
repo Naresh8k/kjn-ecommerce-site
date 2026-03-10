@@ -156,6 +156,7 @@ import { useState, useEffect } from 'react';
 import {
   Plus, Trash2, Edit2, X, Image as ImageIcon,
   ToggleRight, ToggleLeft, Link as LinkIcon, Calendar,
+  Layers, ArrowRight,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '@/lib/api';
@@ -173,6 +174,9 @@ const EMPTY = {
   image: '', title: '', linkUrl: '',
   position: 'hero', sortOrder: 0,
   isActive: true, startsAt: '', endsAt: '',
+  // popup-specific
+  subtitle: '', buttonText: '', bgColor: '#1B3C2B',
+  textColor: '#ffffff', overlayOpacity: 0.65, popupDelay: 1,
 };
 
 function BannerSkeleton() {
@@ -184,6 +188,62 @@ function BannerSkeleton() {
         <div className="h-3 bg-gray-100 rounded-full w-1/3" />
         <div className="h-3 bg-gray-100 rounded-full w-1/2" />
       </div>
+    </div>
+  );
+}
+
+/* Live miniature popup preview shown inside the form */
+function PopupPreview({ form }) {
+  const bg = form.bgColor || '#1B3C2B';
+  const textColor = form.textColor || '#ffffff';
+  return (
+    <div className="rounded-xl overflow-hidden border-2 border-dashed border-purple-200 bg-gray-800/60 p-3">
+      <p className="text-xs font-bold text-purple-600 mb-2 uppercase tracking-wide">Live Popup Preview</p>
+      <div
+        className="relative rounded-2xl overflow-hidden mx-auto shadow-xl"
+        style={{ background: bg, maxWidth: 320 }}
+      >
+        {/* fake close btn */}
+        <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-black/30 flex items-center justify-center z-10">
+          <span style={{ color: textColor, fontSize: 14, lineHeight: 1 }}>×</span>
+        </div>
+        {form.image && (
+          <div style={{ maxHeight: 120, overflow: 'hidden' }}>
+            <img src={form.image} alt="popup" className="w-full object-cover" style={{ maxHeight: 120 }} />
+          </div>
+        )}
+        {(form.title || form.subtitle || form.buttonText) && (
+          <div className="px-4 py-3 text-center">
+            {form.title && (
+              <p className="font-extrabold text-sm leading-tight mb-1" style={{ color: textColor }}>
+                {form.title}
+              </p>
+            )}
+            {form.subtitle && (
+              <p className="text-xs mb-2" style={{ color: textColor, opacity: 0.85 }}>
+                {form.subtitle}
+              </p>
+            )}
+            {(form.linkUrl || form.buttonText) && (
+              <span
+                className="inline-flex items-center gap-1 font-bold text-xs px-4 py-1.5 rounded-full"
+                style={{ background: textColor, color: bg }}
+              >
+                {form.buttonText || 'Shop Now'} <ArrowRight className="w-3 h-3" />
+              </span>
+            )}
+          </div>
+        )}
+        {!form.image && !form.title && !form.subtitle && (
+          <div className="py-6 text-center" style={{ color: textColor, opacity: 0.4 }}>
+            <ImageIcon className="w-8 h-8 mx-auto mb-1" />
+            <p className="text-xs">Add image or title to see preview</p>
+          </div>
+        )}
+      </div>
+      <p className="text-[10px] text-gray-400 text-center mt-2">
+        Appears after <strong>{form.popupDelay ?? 1}s</strong> delay · overlay {Math.round((form.overlayOpacity ?? 0.65) * 100)}% dark
+      </p>
     </div>
   );
 }
@@ -242,6 +302,13 @@ export default function AdminBannersPage() {
       isActive: b.isActive ?? true,
       startsAt: b.startsAt ? b.startsAt.slice(0, 16) : '',
       endsAt: b.endsAt ? b.endsAt.slice(0, 16) : '',
+      // popup-specific
+      subtitle: b.subtitle || '',
+      buttonText: b.buttonText || '',
+      bgColor: b.bgColor || '#1B3C2B',
+      textColor: b.textColor || '#ffffff',
+      overlayOpacity: b.overlayOpacity ?? 0.65,
+      popupDelay: b.popupDelay ?? 1,
     });
     setEditId(b.id); setShowForm(true);
   };
@@ -336,8 +403,10 @@ export default function AdminBannersPage() {
                 <div className="flex-1 min-w-0">
                   <p className="font-bold text-sm text-gray-900 truncate mb-1">{b.title || '(No title)'}</p>
                   <div className="flex flex-wrap gap-2 mb-1.5">
-                    <span className="inline-flex items-center gap-1 bg-primary-50 text-primary-900 text-xs font-bold px-2.5 py-0.5 rounded-full">
-                      {posLabel(b.position)}
+                    <span className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-0.5 rounded-full ${
+                      b.position === 'popup' ? 'bg-purple-100 text-purple-700' : 'bg-primary-50 text-primary-900'
+                    }`}>
+                      {b.position === 'popup' ? '🎯 ' : ''}{posLabel(b.position)}
                     </span>
                     <span className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-0.5 rounded-full ${
                       b.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
@@ -345,7 +414,13 @@ export default function AdminBannersPage() {
                       {b.isActive ? '● Active' : '○ Hidden'}
                     </span>
                     <span className="text-xs text-gray-400 font-medium">Order: {b.sortOrder}</span>
+                    {b.position === 'popup' && b.popupDelay != null && (
+                      <span className="text-xs text-purple-500 font-medium">Delay: {b.popupDelay}s</span>
+                    )}
                   </div>
+                  {b.subtitle && (
+                    <p className="text-xs text-gray-500 truncate mb-0.5 italic">{b.subtitle}</p>
+                  )}
                   {b.linkUrl && (
                     <p className="flex items-center gap-1 text-xs text-blue-500 truncate">
                       <LinkIcon className="w-3 h-3 flex-shrink-0" /> {b.linkUrl}
@@ -411,7 +486,7 @@ export default function AdminBannersPage() {
                 value={form.image}
                 onChange={url => setForm(f => ({ ...f, image: url }))}
                 label="Banner Image"
-                hint="Recommended: 1920×600px"
+                hint={form.position === 'popup' ? 'Recommended: 600×400px' : 'Recommended: 1920×600px'}
                 required
               />
 
@@ -459,6 +534,111 @@ export default function AdminBannersPage() {
                   />
                 </div>
               </div>
+
+              {/* ── POPUP-SPECIFIC SECTION ── */}
+              {form.position === 'popup' && (
+                <div className="rounded-2xl border-2 border-purple-200 bg-purple-50 p-4 space-y-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Layers className="w-4 h-4 text-purple-600" />
+                    <p className="text-sm font-extrabold text-purple-800">Popup Settings</p>
+                    <span className="ml-auto text-[10px] bg-purple-200 text-purple-700 font-bold px-2 py-0.5 rounded-full uppercase">Popup Only</span>
+                  </div>
+
+                  {/* Subtitle */}
+                  <div>
+                    <label className="block text-xs font-bold text-purple-700 mb-1.5 uppercase tracking-wide">Subtitle / Description</label>
+                    <input
+                      className="w-full px-4 py-2.5 border-2 border-purple-200 bg-white rounded-xl text-sm font-medium focus:border-purple-500 focus:outline-none transition-colors"
+                      placeholder="e.g. Limited time offer for all farmers"
+                      value={form.subtitle}
+                      onChange={e => setForm(f => ({ ...f, subtitle: e.target.value }))}
+                    />
+                  </div>
+
+                  {/* Button text */}
+                  <div>
+                    <label className="block text-xs font-bold text-purple-700 mb-1.5 uppercase tracking-wide">CTA Button Text</label>
+                    <input
+                      className="w-full px-4 py-2.5 border-2 border-purple-200 bg-white rounded-xl text-sm font-medium focus:border-purple-500 focus:outline-none transition-colors"
+                      placeholder="e.g. Shop Now  (leave blank to hide button)"
+                      value={form.buttonText}
+                      onChange={e => setForm(f => ({ ...f, buttonText: e.target.value }))}
+                    />
+                    <p className="text-[11px] text-purple-500 mt-1">Button only shows if a Click Link URL is also set.</p>
+                  </div>
+
+                  {/* BG colour + Text colour */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-purple-700 mb-1.5 uppercase tracking-wide">Background Colour</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={form.bgColor}
+                          onChange={e => setForm(f => ({ ...f, bgColor: e.target.value }))}
+                          className="w-10 h-10 rounded-lg border-2 border-purple-200 cursor-pointer p-0.5 bg-white"
+                        />
+                        <input
+                          className="flex-1 px-3 py-2 border-2 border-purple-200 bg-white rounded-xl text-sm font-mono focus:border-purple-500 focus:outline-none"
+                          value={form.bgColor}
+                          onChange={e => setForm(f => ({ ...f, bgColor: e.target.value }))}
+                          placeholder="#1B3C2B"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-purple-700 mb-1.5 uppercase tracking-wide">Text Colour</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={form.textColor}
+                          onChange={e => setForm(f => ({ ...f, textColor: e.target.value }))}
+                          className="w-10 h-10 rounded-lg border-2 border-purple-200 cursor-pointer p-0.5 bg-white"
+                        />
+                        <input
+                          className="flex-1 px-3 py-2 border-2 border-purple-200 bg-white rounded-xl text-sm font-mono focus:border-purple-500 focus:outline-none"
+                          value={form.textColor}
+                          onChange={e => setForm(f => ({ ...f, textColor: e.target.value }))}
+                          placeholder="#ffffff"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Overlay opacity + Popup delay */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-purple-700 mb-1.5 uppercase tracking-wide">
+                        Overlay Darkness <span className="normal-case font-normal text-purple-500">({Math.round((form.overlayOpacity ?? 0.65) * 100)}%)</span>
+                      </label>
+                      <input
+                        type="range" min="0" max="1" step="0.05"
+                        value={form.overlayOpacity ?? 0.65}
+                        onChange={e => setForm(f => ({ ...f, overlayOpacity: parseFloat(e.target.value) }))}
+                        className="w-full accent-purple-600"
+                      />
+                      <div className="flex justify-between text-[10px] text-purple-400 mt-0.5">
+                        <span>0% (clear)</span><span>100% (black)</span>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-purple-700 mb-1.5 uppercase tracking-wide">
+                        Popup Delay (seconds)
+                      </label>
+                      <input
+                        type="number" min="0" max="30"
+                        className="w-full px-4 py-2.5 border-2 border-purple-200 bg-white rounded-xl text-sm font-medium focus:border-purple-500 focus:outline-none"
+                        value={form.popupDelay ?? 1}
+                        onChange={e => setForm(f => ({ ...f, popupDelay: parseInt(e.target.value) || 0 }))}
+                      />
+                      <p className="text-[11px] text-purple-500 mt-1">0 = show instantly on page load</p>
+                    </div>
+                  </div>
+
+                  {/* Live preview */}
+                  <PopupPreview form={form} />
+                </div>
+              )}
 
               {/* Schedule */}
               <div>

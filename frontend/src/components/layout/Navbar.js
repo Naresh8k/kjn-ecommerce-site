@@ -5,7 +5,8 @@ import { useRouter, usePathname } from 'next/navigation';
 import {
   ShoppingBag, Search, Heart, User, Menu, X,
   ChevronDown, ChevronRight, Bell, LogOut,
-  Package, Settings, Tag, Layers, Zap, Home
+  Package, Settings, Tag, Layers, Zap, Home,
+  FileText, Shield, RotateCcw, Truck, CreditCard,
 } from 'lucide-react';
 import useAuthStore from '@/store/useAuthStore';
 import useCartStore from '@/store/useCartStore';
@@ -19,11 +20,19 @@ const NAV_LINKS = [
 ];
 
 const MORE_LINKS = [
-  { label: 'My Account', href: '/account',       icon: User    },
-  { label: 'My Orders',  href: '/orders',        icon: Package },
-  { label: 'About Us',   href: '/about-us',      icon: Layers  },
-  { label: 'Blog',       href: '/blog',          icon: Tag     },
-  { label: 'Contact Us', href: '/contact-us',    icon: Bell    },
+  { label: 'My Account',        href: '/account',          icon: User    },
+  { label: 'My Orders',         href: '/orders',           icon: Package },
+  { label: 'About Us',          href: '/about-us',         icon: Layers  },
+  { label: 'Blog',              href: '/blog',             icon: Tag     },
+  { label: 'Contact Us',        href: '/contact-us',       icon: Bell    },
+];
+
+const POLICY_LINKS = [
+  { label: 'Terms & Conditions', href: '/tos',              icon: FileText },
+  { label: 'Privacy Policy',     href: '/privacy-policy',   icon: Shield  },
+  { label: 'Refund Policy',      href: '/refund-policy',    icon: RotateCcw },
+  { label: 'Shipping Policy',    href: '/shipping-policy',  icon: Truck   },
+  { label: 'Payment Policy',     href: '/payment-policy',   icon: CreditCard },
 ];
 
 export default function Navbar() {
@@ -223,7 +232,7 @@ export default function Navbar() {
                   <ChevronDown className={`w-3.5 h-3.5 transition-transform ${moreOpen ? 'rotate-180' : ''}`} />
                 </button>
                 {moreOpen && (
-                  <div className="absolute top-[calc(100%+8px)] right-0 w-52 bg-white rounded-2xl shadow-2xl border border-gray-100 z-50 overflow-hidden py-1">
+                  <div className="absolute top-[calc(100%+8px)] right-0 w-56 bg-white rounded-2xl shadow-2xl border border-gray-100 z-50 overflow-hidden py-1">
                     {MORE_LINKS.map(item => (
                       <Link key={item.href} href={item.href}
                         onClick={() => setMoreOpen(false)}
@@ -232,6 +241,17 @@ export default function Navbar() {
                         {item.label}
                       </Link>
                     ))}
+                    <div className="border-t border-gray-100 mt-1 pt-1">
+                      <p className="px-4 py-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Policies</p>
+                      {POLICY_LINKS.map(item => (
+                        <Link key={item.href} href={item.href}
+                          onClick={() => setMoreOpen(false)}
+                          className="flex items-center gap-3 px-4 py-2 text-xs font-semibold text-gray-500 hover:bg-gray-50 hover:text-primary-900 transition-colors">
+                          <item.icon className="w-3.5 h-3.5 text-gray-400" />
+                          {item.label}
+                        </Link>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
@@ -490,6 +510,18 @@ export default function Navbar() {
               <div className="px-4 py-2 border-t border-gray-100">
                 <p className="text-xs font-extrabold uppercase tracking-widest text-gray-400 px-2 py-2">More</p>
                 {MORE_LINKS.map(item => (
+                  <Link key={item.href} href={item.href}
+                    className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50 hover:text-primary-900 transition-colors mb-0.5">
+                    <item.icon className="w-4 h-4 text-gray-400" />
+                    {item.label}
+                  </Link>
+                ))}
+              </div>
+
+              {/* Policy links */}
+              <div className="px-4 py-2 border-t border-gray-100">
+                <p className="text-xs font-extrabold uppercase tracking-widest text-gray-400 px-2 py-2">Policies</p>
+                {POLICY_LINKS.map(item => (
                   <Link key={item.href} href={item.href}
                     className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50 hover:text-primary-900 transition-colors mb-0.5">
                     <item.icon className="w-4 h-4 text-gray-400" />

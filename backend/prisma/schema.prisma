@@ -336,15 +336,22 @@ model CouponUsage {
 }
 
 model Banner {
-id        String    @id @default(uuid())
-title     String?
-image     String    @db.Text
-linkUrl   String?
-  position  String
-  sortOrder Int       @default(0)
-  isActive  Boolean   @default(true)
-  startsAt  DateTime?
-  endsAt    DateTime?
+  id             String    @id @default(uuid())
+  title          String?
+  image          String    @db.Text
+  linkUrl        String?
+  position       String
+  sortOrder      Int       @default(0)
+  isActive       Boolean   @default(true)
+  startsAt       DateTime?
+  endsAt         DateTime?
+  // Popup-specific fields
+  subtitle       String?
+  buttonText     String?
+  bgColor        String?
+  textColor      String?
+  overlayOpacity Float?
+  popupDelay     Int?      @default(1)
 }
 
 model Blog {

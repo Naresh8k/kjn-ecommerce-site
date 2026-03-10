@@ -3,481 +3,21 @@ import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import {
   ChevronRight, ChevronLeft, Truck, Shield, RefreshCw,
-  Headphones, ArrowRight, Zap, TrendingUp, Star, Package,
-  Flame, Clock, MapPin, CheckCircle, Smartphone, Award, Users, Grid
+  Headphones, ArrowRight, Zap, Star, Package,
+  Flame, Clock, MapPin, CheckCircle, Award, Users,
 } from 'lucide-react';
 import ProductCard from '@/components/product/ProductCard';
 import api from '@/lib/api';
 
 const NO_IMG = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200' viewBox='0 0 24 24' fill='none' stroke='%23D1D5DB' stroke-width='1'%3E%3Crect x='3' y='3' width='18' height='18' rx='2'/%3E%3Ccircle cx='8.5' cy='8.5' r='1.5'/%3E%3Cpolyline points='21 15 16 10 5 21'/%3E%3C/svg%3E";
 
-const GLOBAL_CSS = `
-  /* ─── base utilities ─── */
-  @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
-  @keyframes brand-scroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
-  @keyframes pulse-ring{0%{transform:scale(1);opacity:.7}70%{transform:scale(1.35);opacity:0}100%{transform:scale(1.35);opacity:0}}
-
-  /* ─── tractor ─── */
-  @keyframes tractor-ride-in{
-    0%  {transform:translateX(260px) translateY(0);   opacity:0}
-    8%  {opacity:1}
-    60% {transform:translateX(12px)  translateY(-4px)}
-    75% {transform:translateX(-6px)  translateY(0)}
-    88% {transform:translateX(4px)   translateY(-2px)}
-    100%{transform:translateX(0)     translateY(0);   opacity:1}
-  }
-  @keyframes tractor-idle{
-    0%,100%{transform:translateY(0)   rotate(0deg)}
-    25%    {transform:translateY(-3px) rotate(.4deg)}
-    50%    {transform:translateY(0)   rotate(0deg)}
-    75%    {transform:translateY(-2px) rotate(-.3deg)}
-  }
-  @keyframes tractor-exit-left{
-    0%  {transform:translateX(0);    opacity:1}
-    30% {transform:translateX(-30px);opacity:1}
-    100%{transform:translateX(-320px);opacity:0}
-  }
-
-  /* ─── tractor shadow ─── */
-  @keyframes shadow-idle{
-    0%,100%{transform:scaleX(1)   translateY(0)}
-    50%    {transform:scaleX(.92) translateY(2px)}
-  }
-
-  /* ─── soil/dust chunks thrown from wheels ─── */
-  @keyframes soil-fly{
-    0%  {transform:translate(0,0)    scale(1);  opacity:.75}
-    60% {transform:translate(-28px,-14px) scale(.7);opacity:.4}
-    100%{transform:translate(-50px,4px)  scale(.3);opacity:0}
-  }
-
-  /* ─── fire: multi-axis flicker ─── */
-  @keyframes fire-dance{
-    0%  {transform:scale(1)    rotate(-4deg) translateY(0);    filter:drop-shadow(0 0 22px #ff6d00cc) drop-shadow(0 0 60px #ff6d0055)}
-    15% {transform:scale(1.08) rotate(3deg)  translateY(-7px); filter:drop-shadow(0 0 35px #ff9100ee) drop-shadow(0 0 80px #ff910066)}
-    30% {transform:scale(.95)  rotate(-2deg) translateY(-3px); filter:drop-shadow(0 0 26px #ff6d00cc) drop-shadow(0 0 55px #ff6d0044)}
-    50% {transform:scale(1.12) rotate(4deg)  translateY(-11px);filter:drop-shadow(0 0 48px #ffab00ff) drop-shadow(0 0 100px #ffab0077)}
-    70% {transform:scale(.97)  rotate(-3deg) translateY(-5px); filter:drop-shadow(0 0 28px #ff6d00cc) drop-shadow(0 0 60px #ff6d0055)}
-    85% {transform:scale(1.07) rotate(2deg)  translateY(-8px); filter:drop-shadow(0 0 38px #ff9100ee) drop-shadow(0 0 75px #ff910066)}
-    100%{transform:scale(1)    rotate(-4deg) translateY(0);    filter:drop-shadow(0 0 22px #ff6d00cc) drop-shadow(0 0 60px #ff6d0055)}
-  }
-
-  /* ─── neon ring pulse around fire ─── */
-  @keyframes neon-ring{
-    0%,100%{box-shadow:0 0 0 0 rgba(255,171,0,.0), 0 0 30px 8px rgba(255,100,0,.35)}
-    50%    {box-shadow:0 0 0 18px rgba(255,171,0,.0), 0 0 55px 20px rgba(255,100,0,.55)}
-  }
-
-  /* ─── strobe flash overlay ─── */
-  @keyframes strobe{
-    0%,94%,100%{opacity:0}
-    95%,98%    {opacity:.06}
-    96%,99%    {opacity:.02}
-  }
-  .strobe-layer{animation:strobe 3.5s linear infinite;pointer-events:none;position:absolute;inset:0;background:white;z-index:4}
-
-  /* ─── Ken Burns on admin banner image ─── */
-  @keyframes ken-burns-a{
-    0%  {transform:scale(1)    translate(0,0)}
-    100%{transform:scale(1.12) translate(-2%,-1.5%)}
-  }
-  @keyframes ken-burns-b{
-    0%  {transform:scale(1.1)  translate(-1.5%,-1%)}
-    100%{transform:scale(1)    translate(1%,0.5%)}
-  }
-  .ken-a{animation:ken-burns-a 8s ease-in-out alternate infinite}
-  .ken-b{animation:ken-burns-b 9s ease-in-out alternate infinite}
-
-  /* ─── banner shimmer light sweep ─── */
-  @keyframes banner-sweep{
-    0%  {transform:translateX(-120%) skewX(-20deg);opacity:0}
-    10% {opacity:.55}
-    40% {opacity:.25}
-    60% {opacity:0;transform:translateX(120%) skewX(-20deg)}
-    100%{opacity:0;transform:translateX(120%) skewX(-20deg)}
-  }
-  .banner-sweep::after{
-    content:'';
-    position:absolute;inset:0;
-    background:linear-gradient(105deg,transparent 35%,rgba(255,255,255,.45) 50%,transparent 65%);
-    animation:banner-sweep 4.5s ease-in-out infinite;
-    pointer-events:none;
-    z-index:3;
-  }
-
-  /* ─── animated gradient overlay shift on admin banners ─── */
-  @keyframes overlay-hue{0%{filter:hue-rotate(0deg)}100%{filter:hue-rotate(15deg)}}
-  .banner-overlay-anim{animation:overlay-hue 6s ease-in-out alternate infinite}
-
-  /* ─── cinematic text reveal: clip-path wipe from left ─── */
-  @keyframes clip-reveal{
-    from{clip-path:inset(0 100% 0 0);opacity:0}
-    to  {clip-path:inset(0 0% 0 0);  opacity:1}
-  }
-  .clip-reveal-1{animation:clip-reveal .6s cubic-bezier(.77,0,.18,1) .1s both}
-  .clip-reveal-2{animation:clip-reveal .6s cubic-bezier(.77,0,.18,1) .28s both}
-  .clip-reveal-3{animation:clip-reveal .5s cubic-bezier(.77,0,.18,1) .42s both}
-
-  /* ─── hero text: blur+scale+slide stagger ─── */
-  @keyframes heroWord{
-    from{opacity:0;transform:translateY(28px) scale(.94);filter:blur(6px)}
-    to  {opacity:1;transform:translateY(0)    scale(1);  filter:blur(0)}
-  }
-  .hw1{animation:heroWord .55s cubic-bezier(.22,1,.36,1) .04s both}
-  .hw2{animation:heroWord .55s cubic-bezier(.22,1,.36,1) .16s both}
-  .hw3{animation:heroWord .55s cubic-bezier(.22,1,.36,1) .27s both}
-  .hw4{animation:heroWord .55s cubic-bezier(.22,1,.36,1) .38s both}
-
-  /* ─── slide wipe ─── */
-  @keyframes slideWipeIn{from{clip-path:inset(0 100% 0 0)}to{clip-path:inset(0 0% 0 0)}}
-  .slide-wipe{animation:slideWipeIn .65s cubic-bezier(.77,0,.18,1) both}
-
-  /* ─── parallax orbs ─── */
-  @keyframes orb-drift-a{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(18px,-22px) scale(1.04)}66%{transform:translate(-12px,14px) scale(.97)}}
-  @keyframes orb-drift-b{0%,100%{transform:translate(0,0) scale(1)}40%{transform:translate(-20px,16px) scale(1.06)}80%{transform:translate(14px,-10px) scale(.95)}}
-  .orb-a{animation:orb-drift-a 12s ease-in-out infinite}
-  .orb-b{animation:orb-drift-b 16s ease-in-out infinite}
-
-  /* ─── trust badge flip-in ─── */
-  @keyframes flipIn{
-    from{opacity:0;transform:perspective(500px) rotateX(-55deg) translateY(20px)}
-    to  {opacity:1;transform:perspective(500px) rotateX(0deg)   translateY(0)}
-  }
-  .trust-badge{opacity:0;transform:perspective(500px) rotateX(-55deg) translateY(20px)}
-  .trust-badge.visible{animation:flipIn .52s cubic-bezier(.22,1,.36,1) both}
-
-  /* ─── promo card: animated gradient border + hover lift ─── */
-  @keyframes border-spin{to{--border-angle:360deg}}
-  @property --border-angle{syntax:'<angle>';inherits:false;initial-value:0deg}
-  .promo-shine{
-    position:relative;overflow:hidden;
-    transition:transform .25s cubic-bezier(.22,1,.36,1),box-shadow .25s ease;
-  }
-  .promo-shine:hover{transform:translateY(-4px) scale(1.013);box-shadow:0 20px 60px rgba(0,0,0,.28)}
-  .promo-shine::before{
-    content:'';position:absolute;inset:-2px;border-radius:inherit;z-index:0;
-    background:conic-gradient(from var(--border-angle),transparent 70%,rgba(255,255,255,.45) 85%,transparent 100%);
-    animation:border-spin 3s linear infinite;
-  }
-  .promo-shine>*{position:relative;z-index:1}
-
-  /* ─── section heading bar draw ─── */
-  @keyframes underline-draw{from{transform:scaleX(0)}to{transform:scaleX(1)}}
-  .section-bar{transform-origin:left;animation:underline-draw .5s cubic-bezier(.22,1,.36,1) .1s both}
-
-  /* ─── scroll reveal ─── */
-  .section-reveal{opacity:0;transform:translateY(32px);transition:opacity .6s cubic-bezier(.22,1,.36,1),transform .6s cubic-bezier(.22,1,.36,1)}
-  .section-reveal.visible{opacity:1;transform:translateY(0)}
-
-  /* ─── stat pop ─── */
-  @keyframes statPop{0%{transform:scale(.6) translateY(12px);opacity:0}70%{transform:scale(1.1) translateY(-2px)}100%{transform:scale(1) translateY(0);opacity:1}}
-  .stat-pop{animation:statPop .6s cubic-bezier(.22,1,.36,1) both}
-
-  /* ─── float bob ─── */
-  @keyframes float-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
-
-  /* ─── utilities ─── */
-  .hide-scroll::-webkit-scrollbar{display:none}
-  .hide-scroll{-ms-overflow-style:none;scrollbar-width:none}
-  .brand-track{display:flex;width:max-content;animation:brand-scroll 28s linear infinite}
-  .brand-track:hover{animation-play-state:paused}
-  .pulse-dot::before{content:'';position:absolute;inset:0;border-radius:50%;background:currentColor;animation:pulse-ring 1.8s ease infinite}
-  .hero-btn-primary{transition:transform .18s cubic-bezier(.22,1,.36,1),box-shadow .18s ease}
-  .hero-btn-primary:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.28)}
-  .hero-btn-primary:active{transform:scale(.96)}
-  .cat-card:hover .cat-img{transform:scale(1.1) rotate(1deg)}
-  .cat-img{transition:transform .4s cubic-bezier(.22,1,.36,1)}
-`;
-
-/* ── Silencer Smoke Canvas ───────────────────────────────── */
-/* The 🚜 emoji faces LEFT. The exhaust/silencer is at the     */
-/* top-left area of the emoji (rear-top of tractor).           */
-/* Canvas is sized and positioned dynamically based on the      */
-/* actual rendered tractor element size so it works on both     */
-/* desktop and mobile (where font-size is much smaller).        */
-function SmokeCanvas({ active, tractorRef }) {
-  const canvasRef = useRef(null);
-  const psRef     = useRef([]);
-  const rafRef    = useRef(null);
-  const frameRef  = useRef(0);
-  const dimsRef   = useRef({ OX: 195, OY: 130, W: 150, H: 100, right: 80, bottom: 72 });
-
-  // Re-compute canvas size + position whenever the tractor element resizes
-  useEffect(() => {
-    const recalc = () => {
-      if (!tractorRef?.current || !canvasRef.current) return;
-      const tw = tractorRef.current.offsetWidth;   // actual tractor px width
-      const th = tractorRef.current.offsetHeight;  // actual tractor px height
-
-      // Silencer on the 🚜 emoji is roughly at:
-      //   left ~20% of width from the left edge  → from right edge it is tw * 0.80
-      //   top  ~20% of height from the top       → from bottom it is th * 0.80
-      const silFromRight  = tw * 0.80;  // distance of silencer from right edge of emoji
-      const silFromBottom = th * 0.80;  // distance of silencer from bottom edge of emoji
-
-      // Canvas: OX is near its right edge, OY near its bottom
-      const W = Math.round(tw * 2.2);   // canvas wide enough for smoke to drift
-      const H = Math.round(th * 1.6);   // canvas tall enough for smoke to rise
-      const OX = W - 5;                 // smoke origin: right edge of canvas
-      const OY = H - 5;                 // smoke origin: bottom edge of canvas
-
-      // Position canvas so OX/OY aligns with silencer:
-      //   right  = silFromRight  - (W - OX) = silFromRight  - 5
-      //   bottom = silFromBottom - (H - OY) = silFromBottom - 5
-      const right  = Math.round(silFromRight  - (W - OX));
-      const bottom = Math.round(silFromBottom - (H - OY));
-
-      dimsRef.current = { OX, OY, W, H, right, bottom };
-
-      const canvas = canvasRef.current;
-      canvas.width  = W;
-      canvas.height = H;
-      canvas.style.right  = right  + 'px';
-      canvas.style.bottom = bottom + 'px';
-    };
-
-    recalc();
-
-    // Also recalc on window resize (tractor size is viewport-relative via clamp)
-    window.addEventListener('resize', recalc);
-    return () => window.removeEventListener('resize', recalc);
-  }, [tractorRef]);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-
-    const spawn = () => {
-      if (!active) return;
-      const { OX, OY } = dimsRef.current;
-      for (let i = 0; i < 2; i++) {
-        psRef.current.push({
-          x: OX + (Math.random() - 0.5) * 5,
-          y: OY + (Math.random() - 0.5) * 4,
-          r: 3 + Math.random() * 4,
-          vx: -(0.5 + Math.random() * 0.8),   // drift left
-          vy: -(0.7 + Math.random() * 0.9),   // rise upward
-          grow:    0.5 + Math.random() * 0.4,
-          alpha:   0.5 + Math.random() * 0.2,
-          warmth:  0.8 + Math.random() * 0.2,
-          wobble:  Math.random() * Math.PI * 2,
-          wobbleSpeed: 0.04 + Math.random() * 0.03,
-        });
-      }
-    };
-
-    const loop = () => {
-      const { W, H } = dimsRef.current;
-      ctx.clearRect(0, 0, W, H);
-      frameRef.current++;
-      if (frameRef.current % 2 === 0) spawn();
-
-      psRef.current = psRef.current.filter(p => p.alpha > 0.008);
-      for (const p of psRef.current) {
-        p.wobble += p.wobbleSpeed;
-        p.x += p.vx + Math.sin(p.wobble) * 0.3;
-        p.y += p.vy;
-        p.vy *= 0.993;
-        p.vx *= 0.997;
-        p.r  += p.grow;
-        p.grow  *= 0.98;
-        p.alpha *= 0.962;
-        p.warmth = Math.max(0, p.warmth - 0.007);
-
-        const r = Math.round(160 + p.warmth * 55);
-        const g = Math.round(155 + p.warmth * 40);
-        const b = Math.round(150 + p.warmth * 10);
-
-        const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r);
-        grad.addColorStop(0,    `rgba(${r},${g},${b},${p.alpha})`);
-        grad.addColorStop(0.4,  `rgba(${r},${g},${b},${p.alpha * 0.55})`);
-        grad.addColorStop(0.75, `rgba(${r},${g},${b},${p.alpha * 0.18})`);
-        grad.addColorStop(1,    `rgba(${r},${g},${b},0)`);
-
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fillStyle = grad;
-        ctx.fill();
-      }
-      rafRef.current = requestAnimationFrame(loop);
-    };
-    loop();
-    return () => cancelAnimationFrame(rafRef.current);
-  }, [active]);
-
-  return (
-    <canvas
-      ref={canvasRef}
-      style={{
-        position:      'absolute',
-        right:         dimsRef.current.right,
-        bottom:        dimsRef.current.bottom,
-        pointerEvents: 'none',
-        zIndex:        4,
-      }}
-    />
-  );
-}
-
-/* ── Flash Sale FX Canvas: spotlight beams + sparkles + embers ── */
-function FlashSaleFX() {
-  const canvasRef = useRef(null);
-  const rafRef   = useRef(null);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx  = canvas.getContext('2d');
-    let W = canvas.width  = canvas.offsetWidth  || window.innerWidth;
-    let H = canvas.height = canvas.offsetHeight || 520;
-
-    const onResize = () => {
-      W = canvas.width  = canvas.offsetWidth;
-      H = canvas.height = canvas.offsetHeight;
-    };
-    window.addEventListener('resize', onResize);
-
-    // ── Spotlight beams ──────────────────────────────────────
-    const beams = [
-      { hue: 45,  angle: -0.35, speed:  0.0006, width: 0.09 },
-      { hue: 15,  angle:  0.25, speed: -0.0004, width: 0.07 },
-      { hue: 55,  angle: -0.55, speed:  0.0005, width: 0.06 },
-      { hue: 30,  angle:  0.15, speed: -0.0007, width: 0.05 },
-    ];
-
-    // ── Sparkle particles ────────────────────────────────────
-    const sparks = [];
-    const spawnSpark = () => {
-      sparks.push({
-        x:     Math.random() * W,
-        y:     Math.random() * H * 0.6,
-        r:     0.8 + Math.random() * 2.2,
-        vx:    (Math.random() - 0.5) * 0.7,
-        vy:    0.3 + Math.random() * 0.8,
-        alpha: 1,
-        hue:   30 + Math.random() * 35,
-        twinkle: Math.random() * Math.PI * 2,
-      });
-    };
-
-    // ── Ember particles ──────────────────────────────────────
-    const embers = [];
-    const spawnEmber = () => {
-      embers.push({
-        x:     W * 0.76 + (Math.random() - 0.5) * 70,
-        y:     H * 0.65 + Math.random() * 30,
-        r:     1.2 + Math.random() * 2.8,
-        vx:    (Math.random() - 0.5) * 1.4,
-        vy:    -(2 + Math.random() * 2.8),
-        alpha: 1,
-        hue:   18 + Math.random() * 28,
-        wobble: Math.random() * Math.PI * 2,
-      });
-    };
-
-    let f = 0;
-    const loop = () => {
-      f++;
-      ctx.clearRect(0, 0, W, H);
-
-      // ── Draw sweeping spotlight beams ──────────────────────
-      for (const b of beams) {
-        b.angle += b.speed;
-        const cx = W * 0.78;   // beam origin: right side (near fire)
-        const cy = H * 1.1;
-        const spread = b.width;
-        const len    = W * 1.6;
-
-        const x1 = cx + Math.cos(b.angle - spread) * len;
-        const y1 = cy + Math.sin(b.angle - spread) * len;
-        const x2 = cx + Math.cos(b.angle + spread) * len;
-        const y2 = cy + Math.sin(b.angle + spread) * len;
-
-        const grad = ctx.createLinearGradient(cx, cy, (x1+x2)/2, (y1+y2)/2);
-        grad.addColorStop(0,   `hsla(${b.hue},100%,65%,0.18)`);
-        grad.addColorStop(0.4, `hsla(${b.hue},100%,65%,0.07)`);
-        grad.addColorStop(1,   `hsla(${b.hue},100%,65%,0)`);
-
-        ctx.beginPath();
-        ctx.moveTo(cx, cy);
-        ctx.lineTo(x1, y1);
-        ctx.lineTo(x2, y2);
-        ctx.closePath();
-        ctx.fillStyle = grad;
-        ctx.fill();
-      }
-
-      // ── Spawn + draw sparkles ──────────────────────────────
-      if (f % 6 === 0) spawnSpark();
-      for (let i = sparks.length - 1; i >= 0; i--) {
-        const s = sparks[i];
-        s.x += s.vx; s.y += s.vy; s.alpha *= 0.968;
-        s.twinkle += 0.12;
-        if (s.alpha < 0.04) { sparks.splice(i, 1); continue; }
-        const bri = 0.5 + 0.5 * Math.sin(s.twinkle); // twinkle
-        const g = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, s.r * 3);
-        g.addColorStop(0,   `hsla(${s.hue},100%,92%,${s.alpha * bri})`);
-        g.addColorStop(0.3, `hsla(${s.hue},100%,75%,${s.alpha * bri * 0.6})`);
-        g.addColorStop(1,   `hsla(${s.hue},100%,60%,0)`);
-        ctx.beginPath(); ctx.arc(s.x, s.y, s.r * 3, 0, Math.PI*2);
-        ctx.fillStyle = g; ctx.fill();
-        // cross-star shape
-        ctx.save();
-        ctx.globalAlpha = s.alpha * bri * 0.7;
-        ctx.strokeStyle = `hsl(${s.hue},100%,90%)`;
-        ctx.lineWidth = 0.6;
-        const sr = s.r * 5;
-        ctx.beginPath();
-        ctx.moveTo(s.x - sr, s.y); ctx.lineTo(s.x + sr, s.y);
-        ctx.moveTo(s.x, s.y - sr); ctx.lineTo(s.x, s.y + sr);
-        ctx.stroke();
-        ctx.restore();
-      }
-
-      // ── Spawn + draw embers ────────────────────────────────
-      if (f % 3 === 0) spawnEmber();
-      for (let i = embers.length - 1; i >= 0; i--) {
-        const e = embers[i];
-        e.wobble += 0.08;
-        e.x += e.vx + Math.sin(e.wobble) * 0.4;
-        e.y += e.vy; e.vy *= 0.993; e.alpha *= 0.974;
-        if (e.alpha < 0.04) { embers.splice(i, 1); continue; }
-        const g = ctx.createRadialGradient(e.x, e.y, 0, e.x, e.y, e.r * 3);
-        g.addColorStop(0,   `hsla(${e.hue},100%,80%,${e.alpha})`);
-        g.addColorStop(0.5, `hsla(${e.hue},90%,55%,${e.alpha*0.5})`);
-        g.addColorStop(1,   `hsla(${e.hue},80%,40%,0)`);
-        ctx.beginPath(); ctx.arc(e.x, e.y, e.r*3, 0, Math.PI*2);
-        ctx.fillStyle = g; ctx.fill();
-      }
-
-      rafRef.current = requestAnimationFrame(loop);
-    };
-    loop();
-    return () => {
-      cancelAnimationFrame(rafRef.current);
-      window.removeEventListener('resize', onResize);
-    };
-  }, []);
-
-  return (
-    <canvas
-      ref={canvasRef}
-      style={{
-        position: 'absolute', inset: 0,
-        width: '100%', height: '100%',
-        pointerEvents: 'none', zIndex: 1,
-      }}
-    />
-  );
-}
-
-/* ── Animated Counter ────────────────────────────────────── */
-function useCounter(target, duration = 1400, active = false) {
+/* ── Animated counter hook ────────────────────────────────── */
+function useCounter(target, duration = 1200, active = false) {
   const [val, setVal] = useState(0);
   useEffect(() => {
     if (!active) return;
-    const num = parseInt(target.replace(/\D/g, ''), 10);
+    const raw = String(target).replace(/[^0-9.]/g, '');
+    const num = parseFloat(raw);
     if (!num) return;
     let start = null;
     const step = (ts) => {
@@ -490,9 +30,24 @@ function useCounter(target, duration = 1400, active = false) {
     };
     requestAnimationFrame(step);
   }, [active, target, duration]);
-  const suffix = target.replace(/[\d,]/g, '');
-  return val > 0 ? `${val.toLocaleString()}${suffix}` : target;
+  const suffix = String(target).replace(/[0-9.,]/g, '');
+  return val > 0 ? `${val.toLocaleString()}${suffix}` : `0${suffix}`;
 }
+
+const GLOBAL_CSS = `
+  @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+  @keyframes brand-scroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+  .hide-scroll::-webkit-scrollbar{display:none}
+  .hide-scroll{-ms-overflow-style:none;scrollbar-width:none}
+  .brand-track{display:flex;width:max-content;animation:brand-scroll 28s linear infinite}
+  .brand-track:hover{animation-play-state:paused}
+  .cat-img{transition:transform .3s ease}
+  .cat-card:hover .cat-img{transform:scale(1.05)}
+  @keyframes popup-in{from{opacity:0;transform:scale(.92) translateY(20px)}to{opacity:1;transform:scale(1) translateY(0)}}
+  @keyframes popup-out{from{opacity:1;transform:scale(1) translateY(0)}to{opacity:0;transform:scale(.92) translateY(20px)}}
+  .popup-in{animation:popup-in .35s cubic-bezier(.22,1,.36,1) both}
+  .popup-out{animation:popup-out .25s ease-in both}
+`;
 
 /* ── Skeleton ─────────────────────────────────────────────── */
 function Skel({ h = 20, w = '100%', r = 8 }) {
@@ -712,9 +267,87 @@ function StatCard({ val, label, Icon, color, idx }) {
   );
 }
 
+/* ── Popup Banner ────────────────────────────────────────── */
+function PopupBanner({ banner, onClose }) {
+  const [closing, setClosing] = useState(false);
+  const close = () => {
+    setClosing(true);
+    setTimeout(onClose, 260);
+  };
+  const bg = banner.bgColor || '#1B3C2B';
+  const textColor = banner.textColor || '#ffffff';
+  const overlayOpacity = banner.overlayOpacity ?? 0.65;
+  return (
+    <div
+      className="fixed inset-0 z-[999] flex items-center justify-center p-4"
+      style={{ background: `rgba(0,0,0,${overlayOpacity})`, backdropFilter: 'blur(4px)' }}
+      onClick={close}
+    >
+      <div
+        className={`relative rounded-3xl overflow-hidden shadow-2xl max-w-md w-full ${closing ? 'popup-out' : 'popup-in'}`}
+        style={{ background: bg, maxHeight: '90vh' }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Close button */}
+        <button
+          onClick={close}
+          className="absolute top-3 right-3 z-10 w-8 h-8 rounded-full bg-black/30 hover:bg-black/50 flex items-center justify-center transition-colors"
+        >
+          <span style={{ color: textColor, fontSize: 18, lineHeight: 1 }}>×</span>
+        </button>
+
+        {/* Banner image */}
+        {banner.image && (
+          <div className="w-full" style={{ maxHeight: 260, overflow: 'hidden' }}>
+            <img
+              src={banner.image}
+              alt={banner.title || 'Offer'}
+              className="w-full object-cover"
+              style={{ maxHeight: 260 }}
+            />
+          </div>
+        )}
+
+        {/* Text content */}
+        {(banner.title || banner.subtitle || banner.buttonText) && (
+          <div className="p-6 text-center">
+            {banner.title && (
+              <h2
+                className="font-heading font-extrabold text-2xl leading-tight mb-2"
+                style={{ color: textColor }}
+              >
+                {banner.title}
+              </h2>
+            )}
+            {banner.subtitle && (
+              <p className="text-sm mb-4" style={{ color: textColor, opacity: 0.85 }}>
+                {banner.subtitle}
+              </p>
+            )}
+            {banner.linkUrl && (
+              <a
+                href={banner.linkUrl}
+                onClick={close}
+                className="inline-flex items-center gap-2 font-extrabold px-7 py-3 rounded-full text-sm transition-all hover:-translate-y-0.5 hover:shadow-lg"
+                style={{
+                  background: textColor,
+                  color: bg,
+                }}
+              >
+                {banner.buttonText || 'Shop Now'} <ArrowRight className="w-4 h-4" />
+              </a>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /* ── Main HomePage ────────────────────────────────────────── */
 export default function HomePage() {
   const [banners, setBanners] = useState([]);
+  const [popupBanner, setPopupBanner] = useState(null);
   const [categories, setCategories] = useState([]);
   const [featured, setFeatured] = useState([]);
   const [newest, setNewest] = useState([]);
@@ -749,9 +382,16 @@ export default function HomePage() {
         setCategories(catR.data.data || []);
         setFeatured(featR.data.data || []);
         setNewest(newR.data.data || []);
-        setBanners((bannerR.data.data || []).filter(b => b.isActive && (b.image || b.imageUrl)));
+        const allBanners = (bannerR.data.data || []).filter(b => b.isActive && (b.image || b.imageUrl));
+        setBanners(allBanners.filter(b => b.position !== 'popup'));
         setBrands(brandR.data.data || []);
         setFlashSaleActive((flashR.data.data || []).length > 0);
+        // Show popup banner with optional delay
+        const popup = allBanners.find(b => b.position === 'popup');
+        if (popup) {
+          const delay = (popup.popupDelay ?? 1) * 1000;
+          setTimeout(() => setPopupBanner(popup), delay);
+        }
       } catch (e) {
         console.error(e);
       } finally {
@@ -904,7 +544,7 @@ export default function HomePage() {
                     <div className="absolute right-3 md:right-8 top-1/2 -translate-y-1/2 pointer-events-none select-none" style={{ zIndex: 3 }}>
                       <div style={{ position: 'relative', display: 'inline-block' }}>
                         {/* Silencer smoke — dynamically positioned relative to actual tractor size */}
-                        <SmokeCanvas active={!tractorAnimating} tractorRef={tractorEmojiRef} />
+                        {/*<SmokeCanvas active={!tractorAnimating} tractorRef={tractorEmojiRef} />*/}
 
                         {/* Ground shadow */}
                         <div style={{
@@ -1280,6 +920,9 @@ export default function HomePage() {
 
       {/* ── RECENTLY VIEWED ───────────────────────────────── */}
       <RecentlyViewed />
+
+      {/* ── POPUP BANNER ──────────────────────────────────── */}
+      {popupBanner && <PopupBanner banner={popupBanner} onClose={() => setPopupBanner(null)} />}
 
       {/* ── APP CTA ───────────────────────────────────────── */}
       <section className="py-8 md:py-10 bg-white">
