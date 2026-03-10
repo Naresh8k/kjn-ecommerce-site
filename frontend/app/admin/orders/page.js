@@ -2,9 +2,9 @@
 import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
-  Search, Eye, Edit2, Download,
-  Package, Truck, MapPin, Phone, User, X, Copy, CheckCircle2,
-  Tag, FileText, ChevronLeft, ChevronRight, Filter
+  Search, Eye, Download,
+  Package, Truck, MapPin, Phone, User, X, Copy,
+  Tag, FileText, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '@/lib/api';
@@ -44,8 +44,18 @@ function OrdersContent() {
   const [statusFilter, setStatusFilter] = useState('');
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({ total: 0, totalPages: 1 });
+  const [counts, setCounts] = useState({});
+  const [totalCount, setTotalCount] = useState(0);
   const [selected, setSelected] = useState(null);
   const [updating, setUpdating] = useState(false);
+
+  const fetchCounts = async () => {
+    try {
+      const r = await api.get('/orders/admin/counts');
+      setCounts(r.data.data.counts || {});
+      setTotalCount(r.data.data.total || 0);
+    } catch { /* silent */ }
+  };
 
   const fetchOrders = async () => {
     setLoading(true);
@@ -59,6 +69,7 @@ function OrdersContent() {
     finally { setLoading(false); }
   };
 
+  useEffect(() => { fetchCounts(); }, []);
   useEffect(() => { fetchOrders(); }, [page, statusFilter]);
 
   const handleStatusUpdate = async (orderId, status, trackingId = '', awbNumber = '') => {
@@ -67,6 +78,7 @@ function OrdersContent() {
       await api.put(`/orders/admin/${orderId}/status`, { status, trackingId, awbNumber });
       toast.success('Order updated');
       fetchOrders();
+      fetchCounts();
       if (selected?.id === orderId) setSelected(prev => ({ ...prev, status }));
     } catch { toast.error('Failed to update'); }
     finally { setUpdating(false); }
@@ -101,11 +113,39 @@ function OrdersContent() {
         </div>
         <div className="flex items-center gap-2 text-sm">
           <span className="text-gray-400">Total:</span>
-          <span className="font-bold text-gray-900">{pagination.total}</span>
+          <span className="font-bold text-gray-900">{totalCount}</span>
         </div>
       </div>
 
-      {/* Filters Bar */}
+      {/* Status Tabs */}
+      <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+        {[{ label: 'All', value: '' }, ...allStatuses.map(s => ({ label: s.replace('_', ' '), value: s }))].map(tab => {
+          const isActive = statusFilter === tab.value;
+          const c = tab.value ? statusColors[tab.value] : null;
+          const tabCount = tab.value ? (counts[tab.value] || 0) : totalCount;
+          return (
+            <button
+              key={tab.value}
+              onClick={() => { setStatusFilter(tab.value); setPage(1); }}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap border transition-all ${
+                isActive
+                  ? (c ? `${c.bg} ${c.text} ${c.border} shadow-sm` : 'bg-gray-900 text-white border-gray-900 shadow-sm')
+                  : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300 hover:text-gray-700'
+              }`}
+            >
+              {tab.value && (
+                <span className={`w-1.5 h-1.5 rounded-full ${isActive ? (c?.dot || 'bg-white') : 'bg-gray-300'}`} />
+              )}
+              {tab.label}
+              <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-extrabold ${
+                isActive ? 'bg-white/30' : 'bg-gray-100 text-gray-400'
+              }`}>{tabCount}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Search Bar */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -116,17 +156,6 @@ function OrdersContent() {
             onChange={e => setSearch(e.target.value)}
             className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 bg-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
           />
-        </div>
-        <div className="relative">
-          <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <select
-            value={statusFilter}
-            onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
-            className="pl-9 pr-8 py-2.5 rounded-xl border border-gray-200 bg-white text-sm font-medium focus:ring-2 focus:ring-primary-500 outline-none appearance-none cursor-pointer"
-          >
-            <option value="">All Statuses</option>
-            {allStatuses.map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
-          </select>
         </div>
       </div>
 

@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, Package, ShoppingBag, Users, Tag, ImageIcon,
   FileText, Menu, LogOut, Layers, Zap, Bell, TrendingUp,
-  ChevronDown, Boxes, X, ChevronRight
+  ChevronDown, Boxes, X, ChevronRight, Star
 } from 'lucide-react';
 import useAuthStore from '@/store/useAuthStore';
 import toast from 'react-hot-toast';
@@ -32,6 +32,7 @@ const navItems = [
     ]
   },
   { label: 'Customers', href: '/admin/customers', icon: Users },
+  { label: 'Reviews', href: '/admin/reviews', icon: Star },
   {
     label: 'Content', icon: FileText,
     children: [
@@ -47,6 +48,7 @@ export default function AdminLayout({ children }) {
   const [expanded, setExpanded] = useState({ Catalogue: true, Sales: true, Content: false });
   const [pending, setPending] = useState(0);
   const [lowStock, setLowStock] = useState(0);
+  const [pendingReviews, setPendingReviews] = useState(0);
   const [showNotifs, setShowNotifs] = useState(false);
 
   const pathname = usePathname();
@@ -58,6 +60,9 @@ export default function AdminLayout({ children }) {
       const d = r.data.data;
       setPending(d?.orders?.pending || 0);
       setLowStock(d?.products?.lowStock || 0);
+    }).catch(() => { });
+    api.get('/reviews/admin/pending').then(r => {
+      setPendingReviews((r.data.data || []).length);
     }).catch(() => { });
   }, []);
 
@@ -81,7 +86,7 @@ export default function AdminLayout({ children }) {
     return 'Admin Panel';
   };
 
-  const totalNotifs = pending + lowStock;
+  const totalNotifs = pending + lowStock + pendingReviews;
 
   return (
     <div className="flex min-h-screen bg-gray-50 font-sans">
@@ -305,6 +310,21 @@ export default function AdminLayout({ children }) {
                         <div>
                           <p className="text-sm font-semibold text-gray-900">{lowStock} Low Stock Items</p>
                           <p className="text-xs text-gray-500">Need restocking soon</p>
+                        </div>
+                      </Link>
+                    )}
+                    {pendingReviews > 0 && (
+                      <Link
+                        href="/admin/reviews"
+                        onClick={() => setShowNotifs(false)}
+                        className="flex items-start gap-3 px-4 py-3 hover:bg-yellow-50 transition-colors"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-yellow-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <Star className="w-4 h-4 text-yellow-600" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-gray-900">{pendingReviews} Pending Reviews</p>
+                          <p className="text-xs text-gray-500">Awaiting moderation</p>
                         </div>
                       </Link>
                     )}

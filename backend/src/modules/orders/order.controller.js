@@ -1,5 +1,6 @@
 const prisma = require('../../config/db');
 const { generateInvoicePDF, generateInvoiceNumber } = require('./invoice.service');
+const { sendOrderEmail } = require('./order.email');
 
 // Generate order number
 const generateOrderNumber = () => {
@@ -173,6 +174,14 @@ const placeOrder = async (req, res) => {
       });
     }
 
+    // Send order confirmation email (non-blocking)
+    const placedUser = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, name: true } });
+    const placedOrderFull = await prisma.order.findUnique({
+      where: { id: order.id },
+      include: { items: true, shippingAddress: true },
+    });
+    sendOrderEmail(placedUser?.email, 'PLACED', { ...placedOrderFull, user: placedUser }, placedUser?.name || req.user.name);
+
     return res.status(201).json({
       success: true,
       message: 'Order placed successfully!',
@@ -238,7 +247,9 @@ const getOrderById = async (req, res) => {
         items: {
           include: {
             product: {
-              include: {
+              select: {
+                slug: true,
+                image: true,
                 images: { orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }], take: 1 },
               },
             },
@@ -283,6 +294,10 @@ const cancelOrder = async (req, res) => {
     await prisma.notification.create({
       data: { userId, type: 'order_update', title: 'Order Cancelled', message: `Your order ${order.orderNumber} has been cancelled.` },
     });
+
+    // Send cancellation email (non-blocking)
+    const cancelUser = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, name: true } });
+    sendOrderEmail(cancelUser?.email, 'CANCELLED', order, cancelUser?.name || 'Customer');
 
     return res.status(200).json({ success: true, message: 'Order cancelled successfully' });
   } catch (error) {
@@ -340,7 +355,13 @@ const updateOrderStatus = async (req, res) => {
 
     const order = await prisma.order.update({
       where: { id },
-      data: { status, trackingId: trackingId || undefined, awbNumber: awbNumber || undefined },
+      data: {
+        status,
+        trackingId: trackingId || undefined,
+        awbNumber: awbNumber || undefined,
+        // Auto-mark COD orders as PAID when delivered
+        ...(status === 'DELIVERED' ? { paymentStatus: 'PAID' } : {}),
+      },
       include: { user: true },
     });
 
@@ -372,7 +393,31 @@ const updateOrderStatus = async (req, res) => {
       },
     });
 
+    // Send status update email (non-blocking)
+    const statusUser = await prisma.user.findUnique({ where: { id: order.userId }, select: { email: true, name: true } });
+    const statusOrderFull = await prisma.order.findUnique({
+      where: { id: order.id },
+      include: { items: true, shippingAddress: true },
+    });
+    sendOrderEmail(statusUser?.email, status, { ...statusOrderFull, awbNumber: awbNumber || order.awbNumber, trackingId: trackingId || order.trackingId }, statusUser?.name || 'Customer');
+
     return res.status(200).json({ success: true, message: 'Order status updated', data: order });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// ADMIN — Get order counts per status
+const getOrderCounts = async (req, res) => {
+  try {
+    const groups = await prisma.order.groupBy({
+      by: ['status'],
+      _count: { status: true },
+    });
+    const counts = {};
+    groups.forEach(g => { counts[g.status] = g._count.status; });
+    const total = Object.values(counts).reduce((a, b) => a + b, 0);
+    return res.status(200).json({ success: true, data: { counts, total } });
   } catch (error) {
     return res.status(500).json({ success: false, message: 'Server error' });
   }
@@ -468,4 +513,4 @@ const getOrderInvoice = async (req, res) => {
   }
 };
 
-module.exports = { placeOrder, getMyOrders, getOrderById, cancelOrder, getAllOrders, updateOrderStatus, getHappyCustomers, getOrderInvoice };
+module.exports = { placeOrder, getMyOrders, getOrderById, cancelOrder, getAllOrders, updateOrderStatus, getOrderCounts, getHappyCustomers, getOrderInvoice };

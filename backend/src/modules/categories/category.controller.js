@@ -2,9 +2,12 @@ const prisma = require('../../config/db');
 
 const getCategories = async (req, res) => {
   try {
+    const isAdmin = req.query.admin === 'true';
+    const where = isAdmin ? { parentId: null } : { isActive: true, parentId: null };
+
     const categories = await prisma.category.findMany({
-      where: { isActive: true, parentId: null },
-      include: { children: { where: { isActive: true } } },
+      where,
+      include: { children: true },
       orderBy: { sortOrder: 'asc' },
     });
 
@@ -95,4 +98,46 @@ try {
   }
 };
 
-module.exports = { getCategories, getCategoryProducts, createCategory };
+const updateCategory = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, slug, image, isActive, sortOrder, parentId } = req.body;
+
+    const category = await prisma.category.update({
+      where: { id },
+      data: {
+        ...(name !== undefined && { name }),
+        ...(slug !== undefined && { slug }),
+        ...(image !== undefined && { image }),
+        ...(isActive !== undefined && { isActive }),
+        ...(sortOrder !== undefined && { sortOrder }),
+        ...(parentId !== undefined && { parentId: parentId || null }),
+      },
+    });
+
+    return res.status(200).json({ success: true, data: category });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message || 'Server error' });
+  }
+};
+
+const deleteCategory = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const productCount = await prisma.product.count({ where: { categoryId: id } });
+    if (productCount > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot delete category with ${productCount} product(s). Remove products first.`,
+      });
+    }
+
+    await prisma.category.delete({ where: { id } });
+    return res.status(200).json({ success: true, message: 'Category deleted' });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message || 'Server error' });
+  }
+};
+
+module.exports = { getCategories, getCategoryProducts, createCategory, updateCategory, deleteCategory };

@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   Package, ChevronRight, ShoppingBag, Clock,
-  CheckCircle, Truck, XCircle, RotateCcw, Search
+  CheckCircle, Truck, XCircle, RotateCcw, Search, Star
 } from 'lucide-react';
 import api from '@/lib/api';
 import useAuthStore from '@/store/useAuthStore';
@@ -256,6 +256,24 @@ export default function OrdersPage() {
                       <p className="text-xs text-gray-500 font-semibold mb-3 line-clamp-1">
                         {order.items?.map(i => i.productName).join(', ')}
                       </p>
+
+                      {/* Rate your products — shown only for DELIVERED orders */}
+                      {isDelivered && (
+                        <div className="flex items-center justify-between bg-amber-50 border border-amber-100 rounded-xl px-3 py-2.5 mb-3"
+                          onClick={e => e.preventDefault()}>
+                          <div className="flex items-center gap-2">
+                            <Star className="w-4 h-4 flex-shrink-0" style={{ fill: '#F59E0B', color: '#F59E0B' }} />
+                            <p className="text-xs font-bold text-amber-800">Rate your products</p>
+                          </div>
+                          <Link
+                            href={`/orders/${order.id}`}
+                            className="text-xs font-extrabold text-amber-700 bg-amber-100 hover:bg-amber-200 px-3 py-1 rounded-lg transition-colors"
+                            onClick={e => e.stopPropagation()}
+                          >
+                            Write Review
+                          </Link>
+                        </div>
+                      )}
 
                       {/* Footer row */}
                       <div className="flex items-center justify-between pt-3 border-t border-gray-50">

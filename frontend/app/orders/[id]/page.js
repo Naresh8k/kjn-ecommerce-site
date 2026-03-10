@@ -5,13 +5,15 @@ import Link from 'next/link';
 import {
   Package, MapPin, ChevronRight, Phone, AlertCircle,
   CheckCircle, Clock, Truck, XCircle, RotateCcw,
-  ArrowLeft, MessageCircle, CreditCard, Tag, Download, FileText
+  ArrowLeft, MessageCircle, CreditCard, Tag, Download, FileText,
+  Star, X
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '@/lib/api';
 import useAuthStore from '@/store/useAuthStore';
+import WriteReview from '@/components/product/WriteReview';
 
-const RS = String.fromCharCode(8377);
+const RS = '₹';
 function fmt(n) { return Number(n).toLocaleString('en-IN'); }
 
 const NO_IMG = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80' viewBox='0 0 24 24' fill='none' stroke='%23D1D5DB' stroke-width='1.5'%3E%3Crect x='3' y='3' width='18' height='18' rx='2'/%3E%3Ccircle cx='8.5' cy='8.5' r='1.5'/%3E%3Cpolyline points='21 15 16 10 5 21'/%3E%3C/svg%3E";
@@ -116,6 +118,36 @@ function SectionCard({ title, icon: Icon, children, className = '' }) {
   );
 }
 
+// Interactive star picker shown on delivered items before reviewing
+function StarPicker({ onPick }) {
+  const [hovered, setHovered] = useState(0);
+  return (
+    <div className="mt-2">
+      <p className="text-[10px] text-gray-400 font-semibold mb-1">Tap to rate</p>
+      <div className="flex items-center gap-0.5">
+        {[1, 2, 3, 4, 5].map(s => (
+          <button
+            key={s}
+            type="button"
+            onMouseEnter={() => setHovered(s)}
+            onMouseLeave={() => setHovered(0)}
+            onClick={() => onPick(s)}
+            className="p-0.5 transition-transform hover:scale-125 active:scale-95 focus:outline-none"
+          >
+            <Star
+              className="w-6 h-6 transition-colors duration-100"
+              style={{
+                fill: s <= hovered ? '#F59E0B' : 'none',
+                color: s <= hovered ? '#F59E0B' : '#D1D5DB',
+              }}
+            />
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function SkeletonDetail() {
   return (
     <div className="min-h-screen bg-gray-50 pb-24 animate-pulse">
@@ -143,6 +175,9 @@ export default function OrderDetailPage() {
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState(false);
+  const [reviewItem, setReviewItem] = useState(null); // { productId, productName }
+  // Map of productId -> { canReview, reason, existingReview }
+  const [itemReviews, setItemReviews] = useState({});
 
   useEffect(() => {
     if (!isAuthenticated) { router.push('/login'); return; }
@@ -151,6 +186,23 @@ export default function OrderDetailPage() {
       .catch(() => router.push('/orders'))
       .finally(() => setLoading(false));
   }, [id]);
+
+  // Once order loads and is DELIVERED, fetch review eligibility for each item
+  useEffect(() => {
+    if (!order || order.status !== 'DELIVERED') return;
+    const productIds = [...new Set(order.items?.map(i => i.productId).filter(Boolean))];
+    Promise.all(
+      productIds.map(pid =>
+        api.get(`/reviews/can-review/${pid}`)
+          .then(r => ({ pid, data: r.data }))
+          .catch(() => ({ pid, data: { canReview: false, reason: 'error' } }))
+      )
+    ).then(results => {
+      const map = {};
+      results.forEach(({ pid, data }) => { map[pid] = data; });
+      setItemReviews(map);
+    });
+  }, [order]);
 
   const handleCancel = async () => {
     if (!confirm('Are you sure you want to cancel this order?')) return;
@@ -189,7 +241,7 @@ export default function OrderDetailPage() {
   const total = parseFloat(order.totalAmount || 0);
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-28">
+    <div className="min-h-screen bg-gray-50 pb-8">
 
       {/* Sticky top bar */}
       <div className="bg-white border-b border-gray-100 sticky top-0 z-10">
@@ -202,7 +254,7 @@ export default function OrderDetailPage() {
             <ChevronRight className="w-3 h-3" />
             <span className="font-bold text-gray-800">#{order.orderNumber}</span>
           </div>
-          {/* Title + badge */}
+          {/* Title + badge + actions */}
           <div className="flex items-center justify-between gap-3">
             <div>
               <h1 className="font-heading font-extrabold text-base text-gray-900">Order #{order.orderNumber}</h1>
@@ -210,10 +262,40 @@ export default function OrderDetailPage() {
                 Placed {new Date(order.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
               </p>
             </div>
-            <span className={'inline-flex items-center gap-1.5 text-xs font-extrabold px-3 py-1.5 rounded-full border flex-shrink-0 ' + meta.cls}>
-              <span className={'w-1.5 h-1.5 rounded-full ' + meta.dot} />
-              {meta.label}
-            </span>
+            <div className="flex items-center gap-2 flex-wrap justify-end">
+              <span className={'inline-flex items-center gap-1.5 text-xs font-extrabold px-3 py-1.5 rounded-full border flex-shrink-0 ' + meta.cls}>
+                <span className={'w-1.5 h-1.5 rounded-full ' + meta.dot} />
+                {meta.label}
+              </span>
+              {!['PENDING', 'CANCELLED'].includes(order.status) && (
+                <button
+                  onClick={handleDownloadInvoice}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border-2 border-primary-200 bg-primary-50 text-primary-700 hover:bg-primary-100 text-xs font-extrabold transition-colors"
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  Invoice
+                </button>
+              )}
+              {canCancel && (
+                <button
+                  onClick={handleCancel}
+                  disabled={cancelling}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border-2 border-red-200 bg-red-50 text-red-600 hover:bg-red-100 text-xs font-extrabold transition-colors disabled:opacity-60"
+                >
+                  <AlertCircle className="w-3.5 h-3.5" />
+                  {cancelling ? 'Cancelling...' : 'Cancel'}
+                </button>
+              )}
+              <a
+                href={`https://wa.me/9440658294?text=Hi, I need help with order %23${order.orderNumber}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border-2 border-green-200 bg-green-50 text-green-700 hover:bg-green-100 text-xs font-extrabold transition-colors"
+              >
+                <MessageCircle className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">WhatsApp</span>
+              </a>
+            </div>
           </div>
         </div>
       </div>
@@ -243,22 +325,60 @@ export default function OrderDetailPage() {
             {order.items?.map((item, idx) => (
               <div key={item.id}>
                 <div className="flex gap-3 items-start">
-                  <div className="w-16 h-16 rounded-xl overflow-hidden border border-gray-100 bg-gray-50 flex-shrink-0">
+                  <Link
+                    href={item.product?.slug ? `/products/${item.product.slug}` : '#'}
+                    className="w-16 h-16 rounded-xl overflow-hidden border border-gray-100 bg-gray-50 flex-shrink-0 hover:opacity-80 transition-opacity"
+                  >
                     <img
                       src={getItemImage(item)}
                       alt={item.productName}
                       onError={e => { e.currentTarget.src = NO_IMG; }}
                       className="w-full h-full object-cover"
                     />
-                  </div>
+                  </Link>
                   <div className="flex-1 min-w-0">
-                    <p className="font-bold text-sm text-gray-900 leading-snug mb-0.5">{item.productName}</p>
+                    <Link
+                      href={item.product?.slug ? `/products/${item.product.slug}` : '#'}
+                      className="font-bold text-sm text-gray-900 leading-snug mb-0.5 hover:text-primary-900 transition-colors line-clamp-2 block"
+                    >
+                      {item.productName}
+                    </Link>
                     {item.variantInfo && (
                       <p className="text-[11px] text-gray-400 font-semibold mb-1">{item.variantInfo}</p>
                     )}
                     <p className="text-xs text-gray-500 font-semibold">
                       Qty {item.quantity} × {RS}{fmt(item.unitPrice)}
                     </p>
+                    {order.status === 'DELIVERED' && item.productId && (() => {
+                      const rev = itemReviews[item.productId];
+                      // Already reviewed — show submitted stars
+                      if (rev?.reason === 'already_reviewed') {
+                        const rating = rev.existingReview?.rating || 0;
+                        return (
+                          <div className="mt-2 flex items-center gap-2">
+                            <div className="flex items-center gap-0.5">
+                              {[1,2,3,4,5].map(s => (
+                                <Star key={s} className="w-3.5 h-3.5"
+                                  style={{ fill: s <= rating ? '#F59E0B' : 'none', color: s <= rating ? '#F59E0B' : '#D1D5DB' }} />
+                              ))}
+                            </div>
+                            <span className="text-[11px] font-bold text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                              <CheckCircle className="w-2.5 h-2.5" /> Reviewed
+                            </span>
+                          </div>
+                        );
+                      }
+                      // Can review — show interactive stars
+                      if (rev?.canReview) {
+                        return (
+                          <StarPicker
+                            onPick={s => setReviewItem({ productId: item.productId, productName: item.productName, initialRating: s })}
+                          />
+                        );
+                      }
+                      // Still loading or no purchase — show nothing
+                      return null;
+                    })()}
                   </div>
                   <span className="font-extrabold text-sm text-gray-900 flex-shrink-0 pt-0.5">
                     {RS}{fmt(item.totalPrice)}
@@ -367,45 +487,51 @@ export default function OrderDetailPage() {
         </div>
       </div>
 
-      {/* Sticky bottom action bar */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-3 z-30">
-        <div className="container mx-auto flex items-center gap-3 flex-wrap">
-          {!['PENDING', 'CANCELLED'].includes(order.status) && (
-            <button
-              onClick={handleDownloadInvoice}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 border-primary-200 bg-primary-50 text-primary-700 hover:bg-primary-100 text-xs font-extrabold transition-colors"
-            >
-              <FileText className="w-3.5 h-3.5" />
-              Download Invoice
-            </button>
-          )}
-          {canCancel && (
-            <button
-              onClick={handleCancel}
-              disabled={cancelling}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 border-red-200 bg-red-50 text-red-600 hover:bg-red-100 text-xs font-extrabold transition-colors disabled:opacity-60"
-            >
-              <AlertCircle className="w-3.5 h-3.5" />
-              {cancelling ? 'Cancelling…' : 'Cancel Order'}
-            </button>
-          )}
-          <a
-            href={`https://wa.me/9440658294?text=Hi, I need help with order %23${order.orderNumber}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 border-green-200 bg-green-50 text-green-700 hover:bg-green-100 text-xs font-extrabold transition-colors"
+      {/* ── Rate & Review Modal ── */}
+      {reviewItem && (
+        <div
+          className="fixed inset-0 bg-black/60 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+          onClick={() => setReviewItem(null)}
+        >
+          <div
+            className="bg-white rounded-t-3xl sm:rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl"
+            onClick={e => e.stopPropagation()}
           >
-            <MessageCircle className="w-3.5 h-3.5" />
-            WhatsApp Support
-          </a>
-          <Link
-            href="/orders"
-            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border-2 border-gray-200 bg-white text-gray-600 hover:border-gray-300 text-xs font-extrabold transition-colors ml-auto"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" /> Back to Orders
-          </Link>
+            {/* Modal header */}
+            <div className="sticky top-0 bg-white z-10 px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+              <div>
+                <p className="text-xs text-gray-400 font-semibold mb-0.5">Reviewing</p>
+                <h3 className="font-extrabold text-sm text-gray-900 line-clamp-1">{reviewItem.productName}</h3>
+              </div>
+              <button
+                onClick={() => setReviewItem(null)}
+                className="w-8 h-8 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors flex-shrink-0"
+              >
+                <X className="w-4 h-4 text-gray-600" />
+              </button>
+            </div>
+            <div className="p-5">
+              <WriteReview
+                productId={reviewItem.productId}
+                initialRating={reviewItem.initialRating || 0}
+                onReviewAdded={(review) => {
+                  // Mark this item as already reviewed in local state
+                  setItemReviews(prev => ({
+                    ...prev,
+                    [reviewItem.productId]: {
+                      canReview: false,
+                      reason: 'already_reviewed',
+                      existingReview: review,
+                    },
+                  }));
+                  setReviewItem(null);
+                }}
+              />
+            </div>
+          </div>
         </div>
-      </div>
+      )}
+
     </div>
   );
 }

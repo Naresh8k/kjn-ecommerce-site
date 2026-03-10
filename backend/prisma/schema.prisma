@@ -273,18 +273,29 @@ model Wishlist {
 }
 
 model Review {
-  id                 String   @id @default(uuid())
+  id                 String        @id @default(uuid())
   productId          String
-  product            Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product            Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
   userId             String
-  user               User     @relation(fields: [userId], references: [id])
+  user               User          @relation(fields: [userId], references: [id])
   rating             Int
   title              String?
   body               String?
-  isVerifiedPurchase Boolean  @default(false)
-  isApproved         Boolean  @default(false)
-  createdAt          DateTime @default(now())
+  isVerifiedPurchase Boolean       @default(false)
+  isApproved         Boolean       @default(false)
+  createdAt          DateTime      @default(now())
+  images             ReviewImage[]
   @@unique([userId, productId])
+}
+
+model ReviewImage {
+  id        String   @id @default(uuid())
+  reviewId  String
+  review    Review   @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  url       String   @db.Text
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  @@index([reviewId])
 }
 
 model Coupon {

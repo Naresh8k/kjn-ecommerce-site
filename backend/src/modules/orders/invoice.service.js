@@ -151,8 +151,8 @@ async function generateInvoicePDF(order) {
 
             // ═══════════════ PRODUCT TABLE ═══════════════
             const colWidths = {
-                num: 25, product: 150, hsn: 65, qty: 45,
-                mrp: 55, disc: 45, rate: 60, tax: 50, amount: 60,
+                num: 22, product: 145, hsn: 55, qty: 40,
+                mrp: 52, disc: 42, rate: 58, tax: 48, amount: 63,
             };
 
             const cols = [
@@ -164,7 +164,7 @@ async function generateInvoicePDF(order) {
                 { key: 'disc', label: 'Disc.', align: 'center' },
                 { key: 'rate', label: 'Rate', align: 'right' },
                 { key: 'tax', label: 'Tax', align: 'right' },
-                { key: 'amount', label: 'Amount (\u20B9)', align: 'right' },
+                { key: 'amount', label: 'Amount (Rs.)', align: 'right' },
             ];
 
             // Header row
@@ -288,13 +288,13 @@ async function generateInvoicePDF(order) {
             doc.rect(labelRX, sumY - 2, 180, 16).fill('#FFF3E0');
             doc.font('Helvetica-Bold').fontSize(8).fillColor('#E65100')
                 .text('Total Payable', labelRX + 5, sumY + 1, { width: 90, align: 'right' });
-            doc.text(`\u20B9${totalAmount.toFixed(2)}`, valueRX, sumY + 1, { width: 60, align: 'right' });
+            doc.text(`Rs.${totalAmount.toFixed(2)}`, valueRX, sumY + 1, { width: 60, align: 'right' });
             sumY += 18;
 
             // Received
             doc.font('Helvetica-Bold').fontSize(8).fillColor(GREEN_DARK)
                 .text('Received', labelRX + 5, sumY, { width: 90, align: 'right' });
-            doc.text(`\u20B9 ${totalAmount.toFixed(2)}`, valueRX, sumY, { width: 60, align: 'right' });
+            doc.text(`Rs. ${totalAmount.toFixed(2)}`, valueRX, sumY, { width: 60, align: 'right' });
 
             y = Math.max(y + 30, sumY + 25);
 
@@ -314,7 +314,7 @@ async function generateInvoicePDF(order) {
             doc.font('Helvetica-Bold').fontSize(8).fillColor(GREEN_DARK)
                 .text('Due Amount', leftX + halfWidth + 20, y);
             doc.font('Helvetica-Bold').fontSize(10).fillColor(GREEN_DARK)
-                .text('\u20B90.00', leftX + halfWidth + 120, y);
+                .text('Rs. 0.00', leftX + halfWidth + 120, y);
 
             y += 20;
 

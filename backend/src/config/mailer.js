@@ -17,6 +17,8 @@ const sendEmail = async ({ to, subject, html }) => {
       to,
       subject,
       html,
+      encoding: 'utf-8',
+      textEncoding: 'quoted-printable',
     });
     console.log('Email sent:', info.messageId);
     return true;
